@@ -12,6 +12,8 @@ Team members: Jackson Nie (1005282409) Jun Ho Sung ()
   - [Primary Objectives](#primary-objectives)
   - [Secondary Objectives](#secondary-objectives)
 - [Key features](#key-features)
+  - [Primary Features](#primary-features)
+  - [Secondary Features](#secondary-features)
 - [Tentative plan](#tentative-plan)
 
 ## Motivation
@@ -97,25 +99,52 @@ Test
 2. Pre-Rasterization Enhancement
    * Design and implement a GPU-accelerated pre-rasterization pass.
    * Integrate rasterization output with the ray tracing system.
-   * Evaluate the performance impact of pre-rasterization and also the affect on the final output image.
+   * Evaluate the performance impact of pre-rasterization.
+   * Analyse image quality with/without pre-rasterization with the same number of iterations.
 
 ## Key features
-1. Multithreading (Jackson)
-Parts of the program can be multithreaded ()
+### Primary Features
+1. Performance Optimization
+   * Multi-architecture GPU Backend
+     * Generic gpu backend that utilizes existing crates to run on different gpu architectures.
+     * Rhe utilization of the [emu](https://github.com/calebwin/emu) crate will be our first experiment, because emu provides a clean macro interface for running programs on the GPU and has a relatively simple programming pattern.
+     * Alternatively, implementation will explore wgpu for cross-platform compatibility [wgpu](https://github.com/gfx-rs/wgpu).
+   * Nvidia-specific CUDA implementation
+     * Targets Nvidia GPUs specifically.
+     * Currently aiming to utilize the [Rust-CUDA](https://github.com/Rust-GPU/Rust-CUDA/tree/master) project for implementing CUDA kernels.
+   * CPU Performance Enhancement
+     * Further optimization of existing multi-threaded CPU implementation by identifying sub-optimal execution patterns and optimizable performance bottlenecks.
 
-2. GPU Acceleration (Jun Ho)
-Ray intersection calculations can be sent off to the GPU for ultra-quick processing.
+2. Interactive User Interface
+   * Real-time render and preview capabilities.
+     * Preview functionality for image selection, and interactive selection opposed to command-line argument input.
+   * Configuration of render settings and parameter adjustment.
+     * Visual controls for render setting and parameters.
+     * Real-time parameter adjustment without configuration file editing.
+     * Intuitive preset management.
+   * Performance monitoring
+     * Live progress tracking and estimated completion time.
+     * Detailed performance metrics denoting time spent in exhaustive regions of calculation and bottlenecks. 
+     * Can be interactively toggled on/off.
 
-The following GPU acceleration options will be explored
-* Using EMU (to test out and see how well it works)
-* 
+3. Animation System Integration
+   * Physics-driven object motion.
+   * Smooth camera path interpolation and rotation of object.
 
-3. Animation (Jun Ho)
-    a. Camera movement
-    b. Object movement
+### Secondary Features
+1. Animation System Optimization
+   * UI Integration and Monitoring
+     * Real-time animation parameter controls in the interactive interface.
+     * Live performance metrics and profiling data.
+     * Frame-by-frame preview and adjustment capabilities.
+   * Performance Enhancement
+     * Systematic analysis of animation pipeline bottlenecks.
+     * Implementation of caching strategies for repeated calculations.
 
-** Good to have **
-4. Rasterization as a baseline 
+2. Pre-Rasterization Enhancement
+   * Quality Improvement Pipeline
+     * Implementation of GPU-accelerated pre-rasterization stage.
+     * Integration with existing ray tracing pipeline.
 
 ## Tentative plan
 
