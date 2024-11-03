@@ -1,8 +1,8 @@
 render_info:
   width: 1200
   height: 600
-  samps_per_pix: 100000
-  kd_tree_depth: 15
+  samps_per_pix: 10000
+  kd_tree_depth: 17
   rad_info:  
     debug_single_ray: false
     dir_light_samp: false

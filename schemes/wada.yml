@@ -3,8 +3,8 @@
 render_info:
   width: 1200
   height: 600
-  samps_per_pix: 100000
-  kd_tree_depth: 1
+  samps_per_pix: 10000
+  kd_tree_depth: 17
   rad_info:  
     debug_single_ray: false
     dir_light_samp: false
@@ -77,13 +77,13 @@ scene_members:
         !Dielectric 
           n_out: 1.0
           n_in: 1.5
-   ## front glass 2 :P
-  # - !Sphere
-  #   c: [50, 45.8, 200]
-  #   r: 30
-  #   coloring: !Solid [.999,.999,.999]
-  #   mat:
-  #     divert_ray:
-  #       !Dielectric 
-  #         n_out: 1.0
-  #         n_in: 1.5
+   # front glass 2 :P
+  - !Sphere
+    c: [50, 45.8, 200]
+    r: 30
+    coloring: !Solid [.999,.999,.999]
+    mat:
+      divert_ray:
+        !Dielectric 
+          n_out: 1.0
+          n_in: 1.5
