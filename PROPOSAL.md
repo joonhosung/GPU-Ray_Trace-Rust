@@ -34,56 +34,41 @@ To summarize, through this project, we expect to:
 * Implement new features that showcase intriguing capabilities of the ray tracer
 
 ### Testing
-To get a baseline performance profile of the project at its current state, we rendered two different scenes with varying parameters. 
+To get a baseline performance profile of the project at its current state and to further motivate performance optimizations, we rendered two different scenes with varying parameters. 
 We used one Windows 11 and one MacOS machine to help see how different systems perform. By the end of the project, we will re-run the same tests after the project to determine what speedup we were able to achieve.
 
 During the test runs, we noticed that the image turned out grainy a lot of the time with low-iteration or low-depth parameters. This was due to the renders being purely ray-traced, meaning that every light 'rays' generated had to hit every single point in the object to create a smooth render, making it highly compute intensive. Due to this effect, we were determined to find any ways that could make the quality of the image higher while keeping the number of computations the same.
 
-* Parameters to sweep
-1. samps_per_pix: 100 - 1000 - 10000
-2. assured_depth: 1   - 2    - 5
-3. kd_tree_depth: 2   - 8    - 17
-    
-Jun Ho's machine:
-* CPU: AMD Ryzen 5800x
-* GPU: AMD Radeon RX6800XT
-* RAM: 32GB 3200MHz
-* OS: Windows 11
+| Test Case | Samples/Pixel | Assured Depth | KD Tree Depth | Jun Ho's Time | Jackson's Time |
+|-----------|---------------|---------------|---------------|---------------|----------------|
+| wada_100_1_2 | 100 | 1 | 2 | 21.9s | 18.1s |
+| wada_100_1_8 | 100 | 1 | 8 | 27.6s | 27.1s |
+| wada_100_1_17 | 100 | 1 | 17 | 28.4s | 38.3s |
+| wada_100_2_2 | 100 | 2 | 2 | 25.7s | 29.2s |
+| wada_100_5_2 | 100 | 5 | 2 | 41.0s | 39.0s |
+| wada_1000_1_2 | 1000 | 1 | 2 | 191.2s | 202.4s |
+| wada_1000_2_8 | 1000 | 2 | 8 | 372.6s | 341.2s |
+| wada_10000_1_2 | 10000 | 1 | 2 | 1928.6s | 2034.1s |
+| wada_10000_5_17 | 10000 | 5 | 17 | 6914.1s | 8543.6s |
+| biplane_100_1_2 | 100 | 1 | 2 | DNF (too long ~885s/it) | - |
+| biplane_100_1_8 | 100 | 1 | 8 | 2316.1s | - |
+| biplane_100_1_17 | 100 | 1 | 17 | 328.3s | - |
+| biplane_100_2_2 | 100 | 2 | 2 | DNF (too long ~995s/it) | - |
+| biplane_100_5_2 | 100 | 5 | 2 | DNF | - |
+| biplane_1000_1_2 | 1000 | 1 | 2 | DNF (too long ~885s/it) | - |
+| biplane_1000_2_8 | 1000 | 2 | 8 | - | - |
+| biplane_10000_1_2 | 10000 | 1 | 2 | DNF | - |
+| biplane_10000_5_17 | 10000 | 5 | 17 | 37628.7s | - |
 
-Test
-1. Wada
-    1. wada_100_1_2: 21.9s
-    2. wada_100_1_8: 27.6s
-    3. wada_100_1_17: 28.4s
-    4. wada_100_2_2: 25.7s
-    5. wada_100_5_2: 41.0s
-    6. wada_1000_1_2: 191.2s
-    7. wada_10000_1_2: 1928.6s
-    8. wada_1000_2_8: 372.6s
-    9. wada_10000_5_17: 6914.1s
+Note: DNF = Did Not Finish, "-" = No data available
 
-2. Biplane
-    1. biplane_100_1_2: DNF (too long per iteration - ~885s/it)
-    2. biplane_100_1_8: 2316.1s
-    3. biplane_100_1_17: 328.3s
-    4. biplane_100_2_2: DNF (too long per iteration - ~995s/it)
-    5. biplane_100_5_2: DNF (too long per iteration - ~s/it)
-    6. biplane_1000_1_2: DNF (too long per iteration - ~885s/it)
-    7. biplane_10000_1_2: DNF
-    8. biplane_1000_2_8: 
-    9. biplane_10000_5_17: 37628.7s
-
-
-Jackson's machine:
-    CPU: (jackson to add)
-    GPU:
-    RAM:
-    OS:
-Test
-1. 
-2. 
-3. 
-//// End TODO
+Machine Specifications:
+| Specification | Jun Ho's Machine | Jackson's Machine |
+|--------------|------------------|-------------------|
+| CPU | AMD Ryzen 5800x | Apple M1 PRO |
+| GPU | AMD Radeon RX6800XT | Apple M1 PRO |
+| RAM | 32GB 3200MHz | 16GB |
+| OS | Windows 11 | Ventura 13.1 |
 
 ## Objectives
 ### Primary Objectives
