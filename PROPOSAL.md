@@ -33,11 +33,11 @@ To summarize, through this project, we expect to:
 * Gain practical experience with Rust in high-performance computing
 * Implement new features that showcase intriguing capabilities of the ray tracer
 
-### Testing
+### Performance Testing
 To get a baseline performance profile of the project at its current state and to further motivate performance optimizations, we rendered two different scenes with varying parameters. 
 We used one Windows 11 and one MacOS machine to help see how different systems perform. By the end of the project, we will re-run the same tests after the project to determine what speedup we were able to achieve.
 
-During the test runs, we noticed that the image turned out grainy a lot of the time with low-iteration or low-depth parameters. This was due to the renders being purely ray-traced, meaning that every light 'rays' generated had to hit every single point in the object to create a smooth render, making it highly compute intensive. Due to this effect, we were determined to find any ways that could make the quality of the image higher while keeping the number of computations the same.
+During the test runs, we noticed that the image turned out grainy a lot of the time with low-iteration or low-depth parameters. This was due to the renders being purely ray-traced, meaning that every light 'rays' generated had to hit every single point in the object to create a smooth render, making it highly compute intensive. In extreme cases, it takes ~995 seconds per ray-trace iteration, that's approximately 115 days to trace 10000 iterations. Although deep kd_trees can speed up the process, it still takes 8 hours to trace 10000 iterations with kd_tree depth 17. Therefore, performance optimization is a key feature to be added.
 
 | Test Case | Samples/Pixel | Assured Depth | KD Tree Depth | Jun Ho's Time | Jackson's Time |
 |-----------|---------------|---------------|---------------|---------------|----------------|
@@ -50,15 +50,15 @@ During the test runs, we noticed that the image turned out grainy a lot of the t
 | wada_1000_2_8 | 1000 | 2 | 8 | 372.6s | 341.2s |
 | wada_10000_1_2 | 10000 | 1 | 2 | 1928.6s | 2034.1s |
 | wada_10000_5_17 | 10000 | 5 | 17 | 6914.1s | 8543.6s |
-| biplane_100_1_2 | 100 | 1 | 2 | DNF (too long ~885s/it) | - |
-| biplane_100_1_8 | 100 | 1 | 8 | 2316.1s | - |
-| biplane_100_1_17 | 100 | 1 | 17 | 328.3s | - |
-| biplane_100_2_2 | 100 | 2 | 2 | DNF (too long ~995s/it) | - |
-| biplane_100_5_2 | 100 | 5 | 2 | DNF | - |
-| biplane_1000_1_2 | 1000 | 1 | 2 | DNF (too long ~885s/it) | - |
+| biplane_100_1_2 | 100 | 1 | 2 | DNF (~885s/it) | DNF (~483.64s/it) |
+| biplane_100_1_8 | 100 | 1 | 8 | 2316.1s | 2093.6s |
+| biplane_100_1_17 | 100 | 1 | 17 | 328.3s | 409.3s | 
+| biplane_100_2_2 | 100 | 2 | 2 | DNF (~995s/it) | DNF (~506.52s/it) | 
+| biplane_100_5_2 | 100 | 5 | 2 | DNF | DNF |
+| biplane_1000_1_2 | 1000 | 1 | 2 | - | - |
 | biplane_1000_2_8 | 1000 | 2 | 8 | - | - |
-| biplane_10000_1_2 | 10000 | 1 | 2 | DNF | - |
-| biplane_10000_5_17 | 10000 | 5 | 17 | 37628.7s | - |
+| biplane_10000_1_2 | 10000 | 1 | 2 | - | - |
+| biplane_10000_5_17 | 10000 | 5 | 17 | 37628.7s | DNF (4.54s/it) |
 
 Note: DNF = Did Not Finish, "-" = No data available
 
@@ -164,9 +164,6 @@ The following crates will be explored to add GPU acceleration:
 
 
 ## Tentative plan
-
-Submission deadline: Monday December 16th (6 weeks from proposal due)
-
 The secondary objective 'good-to-haves' will be added to our plan, but will be removed if previous primary objetives will take longer than expected. Each point will have the details about person responsible added in the end (Jun Ho/Jackson/both).
 
 * Week 1 (11/04 - 11/10) - 
