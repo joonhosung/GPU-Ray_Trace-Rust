@@ -8,7 +8,7 @@ Team members: Jackson Nie (1005282409) Jun Ho Sung (1004793262)
 <!-- omit in toc -->
 ## Table of Contents
 - [Motivation](#motivation)
-    -[Testing](#testing)
+  - [Performance Testing](#performance-testing)
 - [Objectives](#objectives)
   - [Primary Objectives](#primary-objectives)
   - [Secondary Objectives](#secondary-objectives)
@@ -41,32 +41,32 @@ During the test runs, we noticed that the image turned out grainy a lot of the t
 
 | Test Case | Samples/Pixel | Assured Depth | KD Tree Depth | Jun Ho's Time | Jackson's Time |
 |-----------|---------------|---------------|---------------|---------------|----------------|
-| wada_100_1_2 | 100 | 1 | 2 | 21.9s | 18.1s |
-| wada_100_1_8 | 100 | 1 | 8 | 27.6s | 27.1s |
-| wada_100_1_17 | 100 | 1 | 17 | 28.4s | 38.3s |
-| wada_100_2_2 | 100 | 2 | 2 | 25.7s | 29.2s |
-| wada_100_5_2 | 100 | 5 | 2 | 41.0s | 39.0s |
-| wada_1000_1_2 | 1000 | 1 | 2 | 191.2s | 202.4s |
-| wada_1000_2_8 | 1000 | 2 | 8 | 372.6s | 341.2s |
-| wada_10000_1_2 | 10000 | 1 | 2 | 1928.6s | 2034.1s |
-| wada_10000_5_17 | 10000 | 5 | 17 | 6914.1s | 8543.6s |
-| biplane_100_1_2 | 100 | 1 | 2 | DNF (~885s/it) | DNF (~483.64s/it) |
-| biplane_100_1_8 | 100 | 1 | 8 | 2316.1s | 2093.6s |
-| biplane_100_1_17 | 100 | 1 | 17 | 328.3s | 409.3s | 
-| biplane_100_2_2 | 100 | 2 | 2 | DNF (~995s/it) | DNF (~506.52s/it) | 
-| biplane_100_5_2 | 100 | 5 | 2 | DNF | DNF |
-| biplane_1000_1_2 | 1000 | 1 | 2 | - | - |
-| biplane_1000_2_8 | 1000 | 2 | 8 | - | - |
-| biplane_10000_1_2 | 10000 | 1 | 2 | - | - |
-| biplane_10000_5_17 | 10000 | 5 | 17 | 37628.7s | DNF (4.54s/it) |
+| wada | 100 | 1 | 2 | 21.9s | 18.1s |
+| wada | 100 | 1 | 8 | 27.6s | 27.1s |
+| wada | 100 | 1 | 17 | 28.4s | 38.3s |
+| wada | 100 | 2 | 2 | 25.7s | 29.2s |
+| wada | 100 | 5 | 2 | 41.0s | 39.0s |
+| wada | 1000 | 1 | 2 | 191.2s | 202.4s |
+| wada | 1000 | 2 | 8 | 372.6s | 341.2s |
+| wada | 10000 | 1 | 2 | 1928.6s | 2034.1s |
+| wada | 10000 | 5 | 17 | 6914.1s | 8543.6s |
+| biplane | 100 | 1 | 2 | DNF (~885s/it) | DNF (~483.64s/it) |
+| biplane | 100 | 1 | 8 | 2316.1s | 2093.6s |
+| biplane | 100 | 1 | 17 | 328.3s | 409.3s | 
+| biplane | 100 | 2 | 2 | DNF (~995s/it) | DNF (~506.52s/it) | 
+| biplane | 100 | 5 | 2 | DNF | DNF |
+| biplane | 1000 | 1 | 2 | - | - |
+| biplane | 1000 | 2 | 8 | - | - |
+| biplane | 10000 | 1 | 2 | - | - |
+| biplane | 10000 | 5 | 17 | 37628.7s | DNF (4.54s/it) |
 
 Note: DNF = Did Not Finish, "-" = No data available
 
 Machine Specifications:
 | Specification | Jun Ho's Machine | Jackson's Machine |
 |--------------|------------------|-------------------|
-| CPU | AMD Ryzen 5800x | Apple M1 PRO |
-| GPU | AMD Radeon RX6800XT | Apple M1 PRO |
+| CPU | AMD Ryzen 5800x | Apple M1 Pro |
+| GPU | AMD Radeon RX6800XT | Apple M1 Pro |
 | RAM | 32GB 3200MHz | 16GB |
 | OS | Windows 11 | Ventura 13.1 |
 
@@ -86,11 +86,7 @@ Machine Specifications:
      * Identify potential drawbacks/limitations of the CPU/GPU implementations, and analyse their impact on performance.
        * Document these optimization impacts and trade-offs.
 
-2. Interactive User Interface
-   * The current implementation utilizes the command line for generating ray traces.
-   * Implement an interactive user interface that allows the user to preview images to trace, along with interactive hyperparameter toggling capabilities.
-
-3. Animation System Integration
+2. Animation System Integration
    * Develop a kinematic-based animation system.
    * Implement efficient frame generation pipeline leveraging GPU accelerated algorithms implemented previously.
 
@@ -100,8 +96,12 @@ Machine Specifications:
    * Analyze bottlenecks/slowdowns in the animation pipeline.
    * Identify potential improvements that can be applied to speed up the process.
    * Integrate the animation generation process into the UI to provide real-time render previews.
-
-2. Pre-Rasterization Enhancement
+  
+2. Interactive User Interface
+   * The current implementation utilizes the command line for generating ray traces.
+   * Implement an interactive user interface that allows the user to preview images to trace, along with interactive hyperparameter toggling capabilities.
+  
+3. Pre-Rasterization Enhancement
    * Design and implement a GPU-accelerated pre-rasterization pass.
    * Integrate rasterization output with the ray tracing system.
    * Evaluate the performance impact of pre-rasterization.
@@ -110,23 +110,33 @@ Machine Specifications:
 ## Key features
 ### Primary Features
 1. Performance Optimization
-   * Multi-architecture GPU Backend
-     * Generic gpu backend that utilizes existing crates to run on different gpu architectures.
-     * The utilization of the [emu](https://github.com/calebwin/emu) crate will be our first experiment, because emu provides a clean macro interface for running programs on the GPU and has a relatively simple programming pattern.
-     * Alternatively, implementation will explore wgpu for cross-platform compatibility [wgpu](https://github.com/gfx-rs/wgpu).
-   * Nvidia-specific CUDA implementation
-     * Targets Nvidia GPUs specifically.
-     * Currently aiming to utilize the [Rust-CUDA](https://github.com/Rust-GPU/Rust-CUDA/tree/master) project for implementing CUDA kernels.
-   * CPU Performance Enhancement
+   * GPU Acceleration
+     * Ray intersection calculations can be sent off to the GPU for ultra-quick processing.
+     * The following crates will be explored to add GPU acceleration:
+       * emu - procedural macro uses OpenCL to automatically determine what parts of the provided code can be accelerated with a GPU. As it's automatic, it will be the easiest to use, but will likely not provide as much optimization compared to the below two options.
+       * WebGPU - Will need to compartmentalize the parallelizable code into compute shaders to then provide as a shader module for the program.
+       * opencl3
+   * CPU Enhancement
      * Further optimization of existing multi-threaded CPU implementation by identifying sub-optimal execution patterns and optimizable performance bottlenecks.
 
-Ray intersection calculations can be sent off to the GPU for ultra-quick processing.
+2. Animation System Integration
+   * Physics-driven object motion.
+   * Smooth camera path interpolation and rotation of object.    
+    1. Keyframe
+    2. cv::videoio::VideoWriter
+    3. Camera movement
+    4. Object movement (JUN HO FINISH)
 
-The following crates will be explored to add GPU acceleration:
-* emu - procedural macro uses OpenCL to automatically determine what parts of the provided code can be accelerated with a GPU. As it's automatic, it will be the easiest to use, but will likely not provide as much optimization compared to the below two options.
-* WebGPU - Will need to compartmentalize the parallelizable code into compute shaders to then provide as a shader module for the program.
-* opencl3
-
+### Secondary Features
+1. Animation System Optimization
+   * UI Integration and Monitoring
+     * Real-time animation parameter controls in the interactive interface.
+     * Live performance metrics and profiling data.
+     * Frame-by-frame preview and adjustment capabilities.
+   * Performance Enhancement
+     * Systematic analysis of animation pipeline bottlenecks.
+     * Implementation of caching strategies for repeated calculations.
+  
 2. Interactive User Interface
    * Real-time render and preview capabilities.
      * Preview functionality for image selection, and interactive selection opposed to command-line argument input.
@@ -138,25 +148,8 @@ The following crates will be explored to add GPU acceleration:
      * Live progress tracking and estimated completion time.
      * Detailed performance metrics denoting time spent in exhaustive regions of calculation and bottlenecks. 
      * Can be interactively toggled on/off.
-
-3. Animation System Integration
-   * Physics-driven object motion.
-   * Smooth camera path interpolation and rotation of object.    
-    1. Keyframe
-    2. cv::videoio::VideoWriter
-    1. Camera movement
-    2. Object movement (JUN HO FINISH)
-
-### Secondary Features
-1. Animation System Optimization
-   * UI Integration and Monitoring
-     * Real-time animation parameter controls in the interactive interface.
-     * Live performance metrics and profiling data.
-     * Frame-by-frame preview and adjustment capabilities.
-   * Performance Enhancement
-     * Systematic analysis of animation pipeline bottlenecks.
-     * Implementation of caching strategies for repeated calculations.
-2. Pre-Rasterization Enhancement
+  
+3. Pre-Rasterization Enhancement
    * Quality Improvement Pipeline
      * Implementation of GPU-accelerated pre-rasterization stage.
      * Integration with existing ray tracing pipeline.
