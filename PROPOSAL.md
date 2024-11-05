@@ -16,17 +16,22 @@ Team members: Jackson Nie (1005282409) Jun Ho Sung (1004793262)
   - [Primary Features](#primary-features)
   - [Secondary Features](#secondary-features)
 - [Tentative plan](#tentative-plan)
+  - [Project Timeline](#project-timeline)
+    - [Week 1 (11/04 - 11/10) - Performance Analysis \& GPU Experimentation](#week-1-1104---1110---performance-analysis--gpu-experimentation)
+    - [Week 2 (11/11 - 11/17) - Core Optimization Implementation](#week-2-1111---1117---core-optimization-implementation)
+    - [Week 3 (11/18 - 11/24) - Performance Optimization \& Animation](#week-3-1118---1124---performance-optimization--animation)
+    - [Week 4 (11/25 - 12/01) - Feature Expansion](#week-4-1125---1201---feature-expansion)
+    - [Week 5 (12/02 - 12/08) - UI \& Rendering Enhancement](#week-5-1202---1208---ui--rendering-enhancement)
+    - [Week 6 (12/09 - 12/15) - Documentation \& Demo](#week-6-1209---1215---documentation--demo)
 
 ## Motivation
-Our project proposal stems from a shared passion for gaming and computer graphics, combined with a fascinating opportunity to enhance an existing ray tracing implementation.
-
-Ray tracing, which creates photorealistic images by simulating light-object interactions, has become increasingly relevant in modern graphics applications, especially in gaming and visual effects. While the current ray-tracer implementation produces high-quality images through multithreading and kd-tree acceleration, its performance remains a significant bottleneck. This limitation presents an exciting opportunity for optimization, particularly through GPU acceleration. 
+Our project combines our passion for gaming and computer graphics with an opportunity to enhance an existing ray tracer. Ray tracing technology, which creates photorealistic images by simulating light-object interactions, is increasingly crucial in modern graphics applications. While the current implementation delivers high-quality output through multithreading and kd-tree acceleration, performance, and a lack of features remains a key challenge.
 
 This motivated us to propose an endeavor that aims to accelerate the ray-tracing process leveraging modern GPUs. Both team members have experience in GPU programming with C++, but neither has experience implementing GPU solutions in Rust. This project therefore offers an ideal intersection of learning and practical application. As a language that promises "blazingly fast" performance while maintaining memory safety, Rust presents an excellent platform for high-performance computing tasks like ray tracing. By accelerating a computationally intensive graphics application, we will gain hands-on experience and learn the techniques of writing high-performance applications in Rust. This aligns perfectly with the course's goal of developing performant and scalable systems.
 
-This project currently has one major algorithmic optimization in the form of K-D trees. By subdividing the bounding box of objects within a scene, the program is able minimize ray tracing in areas that can be confirmed to not have any interecting objects. However, from our testing, we found that increasing the K-D tree depth can lead to longer rendering times, likely due to the size of the tree exploding as the depth increases (talk about how it did improve for more complex scenes). This means that even though the bounding box volume of the objects within the scene decrease, the time required to access all the nodes of the tree will increase. Therefore, we wanted to explore ways to further optimize this project by implementing common software optimization techniqes.
+This project currently has one major algorithmic optimization in the form of K-D trees. By subdividing the bounding box of objects within a scene, the program is able minimize ray tracing in areas that can be confirmed to not have any interecting objects. However, from our testing, we found that increasing the K-D tree depth can lead to longer rendering times for simpler scenes, likely due to the size of the tree exploding unnecessarily as the depth increases. This means that even though the bounding box volume of the objects within the scene decrease, the time required to access all the nodes of the tree will increase. Therefore, we wanted to explore ways to further optimize this project by implementing other software optimization techniques on the CPU.
 
-Beyond pure performance optimization, we aim to expand the ray tracer's capabilities by implementing new features such as an interactive, visual user interface as well as short scene generation. These additions will make the project more engaging, and this combination of optimization and feature development will also provide additional challenges in maintaining performance at scale.
+Beyond pure performance optimization, we aim to expand the ray tracer's capabilities by implementing new features such as short scene generation and an interactive, visual user interface. These additions will make the project more engaging, and this combination of optimization and feature development will also provide additional challenges in maintaining performance at scale.
 
 To summarize, through this project, we expect to:
 * Significantly improve ray tracing performance through GPU acceleration
@@ -34,10 +39,20 @@ To summarize, through this project, we expect to:
 * Implement new features that showcase intriguing capabilities of the ray tracer
 
 ### Performance Testing
-To get a baseline performance profile of the project at its current state and to further motivate performance optimizations, we rendered two different scenes with varying parameters. 
-We used one Windows 11 and one MacOS machine to help see how different systems perform. By the end of the project, we will re-run the same tests after the project to determine what speedup we were able to achieve.
+To establish baseline performance metrics and justify our optimization efforts, we conducted rendering tests across two distinct scenes using varying parameters. Tests were performed on both Windows 11 and MacOS systems to evaluate cross-platform performance. These benchmarks will serve as comparison points for measuring improvements after our optimizations.
 
-During the test runs, we noticed that the image turned out grainy a lot of the time with low-iteration or low-depth parameters. This was due to the renders being purely ray-traced, meaning that every light 'rays' generated had to hit every single point in the object to create a smooth render, making it highly compute intensive. In extreme cases, it takes ~995 seconds per ray-trace iteration, that's approximately 115 days to trace 10000 iterations. Although deep kd_trees can speed up the process, it still takes 8 hours to trace 10000 iterations with kd_tree depth 17. Therefore, performance optimization is a key feature to be added.
+Test Scenes:
+
+* Wada: A relatively simple scene containing 8 wada basin spheres
+* Biplane: A complex scene depicting a plane over snowy terrain, composed of 267,958 triangles
+
+Key Findings:
+* Low iteration or depth parameters frequently resulted in grainy output
+* Pure ray-tracing requires each light ray to interact with every object point for smooth rendering, resulting in extensive computing
+* Rendering times were prohibitive:
+  * Biplane base case (kd-tree depth 2): ~995 seconds per ray-trace iteration (~115 days for 10,000 iterations)
+  * Biplane with deep kd-tree optimization (depth 17): ~8 hours for 10,000 iterations
+These results clearly demonstrate the need for significant performance optimization. The current rendering times, particularly for complex scenes like the biplane, are impractical for real-world applications. While kd-tree acceleration provides some improvement, additional optimization strategies are essential for achieving usable performance.
 
 | Test Case | Samples/Pixel | Assured Depth | KD Tree Depth | Jun Ho's Time | Jackson's Time |
 |-----------|---------------|---------------|---------------|---------------|----------------|
@@ -113,9 +128,10 @@ Machine Specifications:
    * GPU Acceleration
      * Ray intersection calculations can be sent off to the GPU for ultra-quick processing.
      * The following crates will be explored to add GPU acceleration:
-       * emu - procedural macro uses OpenCL to automatically determine what parts of the provided code can be accelerated with a GPU. As it's automatic, it will be the easiest to use, but will likely not provide as much optimization compared to the below two options.
-       * WebGPU - Will need to compartmentalize the parallelizable code into compute shaders to then provide as a shader module for the program.
-       * opencl3
+       * emu - procedural macro uses OpenCL to automatically determine what parts of the provided code can be accelerated with a GPU. As it's automatic, it will be the easiest to use, but will likely not provide as much optimization compared to the latter two options.
+       * WebGPU - will need to compartmentalize the parallelizable code into compute shaders to then provide as a shader module for the program.
+       * opencl3 - vanilla OpenCL API that can target a wide range of heterogeneous devices.
+       * rust-cuda - crate that allows executing CUDA kernels on NVIDIA gpus. Kernel programming interface is extremely similar to C++.
    * CPU Enhancement
      * Further optimization of existing multi-threaded CPU implementation by identifying sub-optimal execution patterns and optimizable performance bottlenecks.
 
@@ -157,51 +173,74 @@ Machine Specifications:
 
 
 ## Tentative plan
-The secondary objective 'good-to-haves' will be added to our plan, but will be removed if previous primary objetives will take longer than expected. Each point will have the details about person responsible added in the end (Jun Ho/Jackson/both).
+### Project Timeline
+Secondary objectives may be deprioritized based on progress with primary goals.
+#### Week 1 (11/04 - 11/10) - Performance Analysis & GPU Experimentation
 
-* Week 1 (11/04 - 11/10) - 
-  * We will meet regularly during the first week to complete the following tasks:
-    * Performance profiling. We will work on identifying the performance bottlenecks of the current implementation. (to look into crates that help do this) (Both)
-    * Explore GPU acceleration methods with emu, wgpu, and CUDA. Starting with emu, we will try offloading some loops to the GPU to see how they will work. By the end of the week, one method will be chosen for the hardware acceleration for the rest of the project.
-      * emu (Jun Ho)
-      * wgpu (Both)
-      * cuda - if needed (Jackson)
+* Performance Profiling
+  * Research profiling crates and identify bottlenecks with them (Both)
 
-* Week 2 (11/11 - 11/17) - 
-  * Start writing compute shaders for the chosen crate. (Both - separate based on optimization points)
-    * This will be advised by the performance profiling of the week before, as these bottlenecks will be able to be accelerated. (Both - based on shaders written)
-    * The most computationally intensive portions of the code will be accelerated first. (Jackson expand)
-    * While writing the shaders, we will profile the program to see what kind of speedup we get.
-  * Start implementing the Keyframe crate into the current program for frame interpolation. (Jun Ho - do less optimizations to focus on this as well)
-    * Progress on this point will largely depend on how well the GPU programming goes.
-    * By this point, the animation won't be rendered, but the object locations of each frame will be able to be determined.
+* GPU Acceleration Framework Evaluation
+  * emu implementation (Jun Ho)
+  * wgpu implementation (Both)
+  * CUDA exploration if needed (Jackson)
+  * opencl3 exploration if needed (Both)
 
-* Week 3 (11/18 - 11/24) - 
-  * Further optimizations if they're found (Both)
-  * Finish the bulk of the GPU shader programming to begin more detailled profiling. (Both)
-    * If we are able to achieve more than 50x speedup on Jun Ho's machine, we will have reached our speedup goal.
-  * Once our speedup goal is reached, then we will begin focusing on animation generation.
-    * Finish keyframe generation implementation. (Jun Ho)
-    * Add multiple frame generation based on the keyframes. This will make the program run for n-times the frames needed compared to the base image rendering
-    * Start implementing the VideoWriter module to compile all the frames into one video (Jackson)
+#### Week 2 (11/11 - 11/17) - Core Optimization Implementation
 
-* Week 4 (11/25 - 12/01) - 
-  * Further optimizations if they're found (Both)
-  * Complete video generation feature (Both - depends on Keyframe and VideoWriter implementation progress)
-  * Start designing the UI (Jackson - to expand)
-  * Start adding rasterization calculations for the renderer (Jun Ho)
-    * Instead of tracing rays from light sources, a fixed light source will be used where rays casted from the camera will be intersected with the objects on the scene.
-* Week 5 (12/02 - 12/08) - 
-  * Further optimizations if they're found (Both)
-  * UI (Jackson to expand)
-    * Render info to be added to the UI for easy render configuration
-  * Combine rasterization with ray tracing to create a pre-rasterized render (Jun Ho)
-    * Experiment with optimal combinations of ray tracing with pre-rasterization to determine what the better parameters will be
-* Week 6 (12/09 - 12/15) - 
-  * Further optimizations if they're found (Both)
-  * Report writing based on our findings (Both)
-  * Create video demo portraying: (Jun Ho to make video, Jackson to provide his machine's speedup info)
-    * Speedup achieved from optimizations
-    * Animation rendering feature
-    * UI (if added)
-    * Speedup from pre-rasterization (if added)
+* Compute Shader Development (Both)
+  * Prioritize on highest-impact bottlenecks identified in profiling
+  * Continuous performance benchmarking whilst optimizations are applied
+  * Jackson will take on more work here as Jun Ho will work on Keyframe Integration
+
+* Keyframe Integration (Jun Ho)
+  * Begin implementation of frame interpolation
+  * At this point, the animations won't be rendered, but the object for each frame should be calculated
+
+#### Week 3 (11/18 - 11/24) - Performance Optimization & Animation
+
+* Complete Core GPU Implementation (Both)
+  * Target: 50x speedup on Jun Ho's machine
+    * Will also experiment on Jackson's machine, but currently unclear how well Macbook GPUs are supported
+
+* Animation Development (Pending speedup goals)
+  * Complete keyframe generation (Jun Ho)
+  * Implement multi-frame generation
+  * Begin VideoWriter module implementation (Jackson)
+
+#### Week 4 (11/25 - 12/01) - Feature Expansion
+
+* Ongoing Optimization Refinement (Both)
+  * Optimize any missed/new code regions that are easily optimizable
+  * Not the top priority here, more so low-hanging-fruit cleanup
+* Complete Video Generation Feature (Both)
+* Interactive UI Design Initiation (Jackson)
+  * Research crates to use
+  * Implement a prototype that can do basic preview and parameter toggling
+* Rasterization Implementation (Jun Ho)
+
+#### Week 5 (12/02 - 12/08) - UI & Rendering Enhancement
+
+* UI Finalization (Jackson)
+  * All features including preview and parameter toggling should be functional
+
+* Hybrid Rendering System (Jun Ho)
+  * Combine rasterization with ray tracing to form final pipeline
+
+#### Week 6 (12/09 - 12/15) - Documentation & Demo
+* Further optimizations if applicable (Both)
+  * Low priority
+
+* Project Documentation (Both)
+  * Document findings made during optimization changes
+  * Analyse and summarize all optimizations made and why they were effective/uneffective
+  * Describe video generation feature implementation and how it can be used
+  * Demonstrate interactive UI and what features it has
+  * Show improvements achieved by adding a pre-rasterization step to the pipeline
+
+* Demo Video Creation That Portrays:
+  * Speedup achieved from optimizations
+  * Animation/video rendering feature
+  * Interactive UI (if added)
+  * Speedup/quality improvement from pre-rasterization (if added)
+  * Jun Ho to create the video, Jackson to provide all results and steps to reproduce
