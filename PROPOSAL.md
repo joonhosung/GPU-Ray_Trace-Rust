@@ -25,21 +25,20 @@ Team members: Jackson Nie (1005282409) Jun Ho Sung (1004793262)
     - [Week 6 (12/09 - 12/15) - Documentation \& Demo](#week-6-1209---1215---documentation--demo)
 
 ## Motivation
-Our project combines our passion for gaming and computer graphics with an opportunity to enhance an existing ray tracer. Ray tracing technology, which creates photorealistic images by simulating light-object interactions, is increasingly crucial in modern graphics applications. While the current implementation delivers high-quality output through multithreading and kd-tree acceleration, performance, and a lack of features remains a key challenge.
+Our project combines our passion for gaming and computer graphics with an opportunity to enhance an existing ray tracer. Ray tracing technology, which creates photorealistic images by simulating light-object interactions, is increasingly crucial in modern graphics applications. While the current implementation delivers high-quality output through multithreading and KD-tree acceleration, performance and a lack of features remain key challenges.
 
-This motivated us to propose an endeavor that aims to accelerate the ray-tracing process leveraging modern GPUs. Both team members have experience in GPU programming with C++, but neither has experience implementing GPU solutions in Rust. This project therefore offers an ideal intersection of learning and practical application. As a language that promises "blazingly fast" performance while maintaining memory safety, Rust presents an excellent platform for high-performance computing tasks like ray tracing. By accelerating a exhaustive graphics application, we will gain hands-on experience and learn the techniques of writing high-performance applications in Rust. This aligns perfectly with the course's goal of developing performant and scalable systems.
+This motivated us to propose an endeavour to accelerate the ray-tracing process leveraging modern GPUs. Both team members have experience in GPU programming with C++, but neither has experience implementing GPU solutions in Rust. This project, therefore, offers an ideal intersection of learning and practical application. As a language that promises "blazingly fast" performance while maintaining memory safety, Rust presents an excellent platform for high-performance computing tasks like ray tracing. By accelerating a computationally intensive graphics application, we will gain hands-on experience and learn the techniques of writing high-performance applications in Rust. This aligns perfectly with the course's goal of developing performant and scalable systems.
 
-This motivated us to propose an endeavor that aims to accelerate the ray-tracing process leveraging modern GPUs. Both team members have experience in GPU programming with C++, but neither has experience implementing GPU solutions in Rust. This project therefore offers an ideal intersection of learning and practical application. As a language that promises "blazingly fast" performance while maintaining memory safety, Rust presents an excellent platform for high-performance computing tasks like ray tracing. By accelerating a computationally intensive graphics application, we will gain hands-on experience and learn the techniques of writing high-performance applications in Rust. This aligns perfectly with the course's goal of developing performant and scalable systems.
+Beyond pure performance optimization, we aim to expand the ray tracer's capabilities by implementing new features such as an interactive, visual user interface and short scene generation. These additions will make the project more engaging, and this combination of optimization and feature development will also provide additional challenges in maintaining performance at scale.
 
-Beyond pure performance optimization, we aim to expand the ray tracer's capabilities by implementing new features such as an interactive, visual user interface as well as short scene generation. These additions will make the project more engaging, and this combination of optimization and feature development will also provide additional challenges in maintaining performance at scale.
 
 To summarize, through this project, we expect to:
 * Significantly improve ray tracing performance through GPU acceleration
 * Gain practical experience with Rust in high-performance computing
-* Implement new features that showcase intriguing capabilities of the ray tracer
+* Implement new features that showcase the intriguing capabilities of the ray tracer
 
 ### Performance Testing
-To establish baseline performance metrics and justify our optimization efforts, we conducted rendering tests across two distinct scenes using varying parameters. Tests were performed on both Windows 11 and MacOS systems to evaluate cross-platform performance. These benchmarks will serve as comparison points for measuring improvements after our optimizations.
+We conducted rendering tests across two distinct scenes using varying parameters to establish baseline performance metrics and justify our optimization efforts. Tests were performed on Windows 11 and MacOS systems to evaluate cross-platform performance. These benchmarks will serve as comparison points for measuring improvements after our optimizations.
 
 Test Scenes:
 
@@ -50,12 +49,12 @@ Key Findings:
 * Low iteration or depth parameters frequently resulted in grainy output
 * Pure ray-tracing requires each light ray to interact with every object point for smooth rendering, resulting in extensive computing
 * Rendering times were prohibitive:
-  * Biplane base case (kd-tree depth 2): ~995 seconds per ray-trace iteration (~115 days for 10,000 iterations)
-  * Biplane with deep kd-tree optimization (depth 17): ~8 hours for 10,000 iterations
-These results clearly demonstrate the need for significant performance optimization. The current rendering times, particularly for complex scenes like the biplane, are impractical for real-world applications. While kd-tree acceleration provides some improvement, additional optimization strategies are essential for achieving usable performance.
+  * Biplane base case (KD-tree depth 2): ~995 seconds per ray-trace iteration (~115 days for 10,000 iterations)
+  * Biplane with deep KD-tree optimization (depth 17): ~8 hours for 10,000 iterations
+These results clearly demonstrate the need for significant performance optimization. The current rendering times, particularly for complex scenes like the biplane, are impractical for real-world applications. While KD-tree acceleration provides some improvement, additional optimization strategies are essential for achieving usable performance.
 
 
-Furthermore, we found that increasing the K-D tree depth can lead to longer rendering times for simpler scenes (wada). This was likely due to the size of the tree exploding as the depth increases. This means that even though the bounding box volume of the spheres within the scene decrease, the time required to access all the nodes of the tree increase. This further shows that there are performance bottlenecks existing within the current code.
+Furthermore, increasing the K-D tree depth can lead to longer rendering times for simpler scenes (wada). This was likely due to the size of the tree exploding as the depth increased. This means that even though the bounding box volume of the spheres within the scene decreases, the time required to access all the tree nodes increases. This further shows that performance bottlenecks exist within the current code.
 
 | Test Case | Samples/Pixel | Assured Depth | KD Tree Depth | Jun Ho's Time | Jackson's Time |
 |-----------|---------------|---------------|---------------|---------------|----------------|
@@ -97,16 +96,16 @@ Machine Specifications:
    * Conduct thorough performance analysis to:
      * Identify computational bottlenecks in the current implementation
      * Determine optimal GPU-accelerated algorithms for ray tracing operations
-       * Since the bulk of the operations are simple math applied to a wide range of pixels, we believe that GPU acceleration fits this problem extremely well
+       * Since the bulk of the operations are simple math applied to a wide range of pixels, we believe that GPU acceleration fits this problem exceptionally well
    * Based on the test results, target a minimum 5x speedup over current CPU implementation
    * Implement comprehensive benchmarking suite to:
      * Compare CPU vs GPU performance metrics
-     * Identify potential drawbacks/limitations of the CPU/GPU implementations, and analyze their impact on performance
+     * Identify potential drawbacks/limitations of the CPU/GPU implementations and analyze their impact on performance
        * Document these optimization impacts and trade-offs
 
 2. Animation System Integration
    * Develop a kinematic-based animation system
-   * Implement efficient frame generation pipeline leveraging GPU accelerated algorithms implemented previously
+   * Implement efficient frame generation pipeline leveraging GPU-accelerated algorithms implemented previously
 
 
 ### Secondary Objectives
@@ -131,10 +130,10 @@ Machine Specifications:
    * GPU Acceleration
      * Ray intersection calculations can be sent off to the GPU for ultra-quick processing
      * The following crates will be explored to add GPU acceleration:
-       * emu - procedural macro uses OpenCL to automatically determine what parts of the provided code can be accelerated with a GPU. As it's automatic, it will be the easiest to use, but will likely not provide as much optimization compared to the latter two options
-       * WebGPU - will need to compartmentalize the parallelizable code into compute shaders to then provide as a shader module for the program
+       * emu - procedural macro uses OpenCL to automatically determine what parts of the provided code can be accelerated with a GPU. As it's automatic, it will be the easiest to use but will likely not provide as much optimization compared to the latter two options
+       * wgpu - will need to compartmentalize the parallelizable code into compute shaders then to provide it as a shader module for the program
        * opencl3 - vanilla OpenCL API that can target a wide range of heterogeneous devices
-       * rust-cuda - crate that allows executing CUDA kernels on NVIDIA gpus. Kernel programming interface is extremely similar to C++
+       * rust-cuda - crate that allows executing CUDA kernels on NVIDIA GPUs. Kernel programming interface is extremely similar to C++
    * CPU Enhancement
      * Further optimization of existing multi-threaded CPU implementation by identifying sub-optimal execution patterns and optimizable performance bottlenecks
 
