@@ -27,6 +27,9 @@ pub struct NormFromMesh<'m> {
     pub normal_transform: Matrix3<f32>,
     pub mesh: &'m Mesh,
 }
+
+//TODO: opt candidate
+// All functions in this impl can be optimized to not thrash cache so much.
 impl<'m> NormFromMesh<'m> {
     pub fn from_mesh_and_inner_idx(mesh: &'m Mesh, full_idx: (usize, usize)) -> Self {
         NormFromMesh {
@@ -81,6 +84,7 @@ impl<'m> NormFromMesh<'m> {
         // use NormType::*;
         let (prim_idx, indices) = full_idxs;
         
+        //TODO: opt candidate
         match &mesh.rgb_info[prim_idx].coords {
             Some(tex_coords) => {
                 let t1 = tex_coords[indices[1]] - tex_coords[indices[0]];
@@ -114,7 +118,8 @@ impl<'m> NormFromMesh<'m> {
             None => *trans_mat3,
         }
     }
-
+    
+    //TODO: opt candidate
     fn get_face_norm(mesh: &Mesh, full_idx: (usize, usize)) -> Vector3<f32> {
         let (prim_idx, inner_idx) = full_idx;
         let poses: Vec<Vector3<f32>> = mesh.indices[prim_idx][inner_idx].iter()
@@ -125,6 +130,7 @@ impl<'m> NormFromMesh<'m> {
     }
 }
 
+//TODO: opt candidate
 impl GimmeNorm for NormFromMesh<'_> {
     fn get_norm(&self, barycentric: &(f32, f32)) -> Vector3<f32> {
         let (prim_idx, inner_idx) = self.index;
@@ -152,6 +158,7 @@ pub struct RgbFromMesh<'m> {
     pub mesh: &'m Mesh,
 }
 
+//TODO: opt candidate
 impl GimmeRgb for RgbFromMesh<'_> {
     fn get_rgb(&self, barycentric: &(f32, f32)) -> Vector3<f32> {
         let (prim_idx, _inner_idx) = self.index;
@@ -173,6 +180,7 @@ pub struct DivertsRayFromMesh<'m> {
 impl DivertsRay for DivertsRayFromMesh<'_> {
     type Seeding = (bool, f32); // (should_diff, roughness)
 
+    //TODO: opt candidate
     fn divert_ray_seed(&self, ray: &Ray, norm: &Vector3<f32>, barycentric: &(f32, f32)) -> Self::Seeding {
         let (prim_idx, _inner_idx) = self.index;
 

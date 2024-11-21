@@ -2,6 +2,7 @@ use nalgebra::Vector3;
 use crate::ray::Ray;
 use rand::Rng;
 
+// TODO: How the light interacts with the object. Lots of math here, optimization candidate
 pub fn spec(ray: &Ray, norm: &Vector3<f32>, o: &Vector3<f32>) -> Ray {
     let d = (ray.d - norm * 2.0 * ray.d.dot(&norm)).normalize();
     Ray {d, o: o.clone()}

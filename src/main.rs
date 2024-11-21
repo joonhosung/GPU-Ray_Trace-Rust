@@ -24,6 +24,7 @@ fn main() {
     let mut scheme_dat = String::new();
     file.read_to_string(&mut scheme_dat).unwrap();
 
+    // Add use_gpu to render_info scheme?
     let scheme = Scheme::from_yml(scheme_dat);
 
     let (region_width, region_height) = (scheme.render_info.width, scheme.render_info.height);

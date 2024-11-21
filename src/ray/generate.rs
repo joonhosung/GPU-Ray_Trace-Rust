@@ -8,6 +8,7 @@ pub struct RayCompute {
     x_off: f32, y_off: f32,
 }
 
+// TODO: Computing ray - try to send to HW. Clear math
 impl RayCompute {
     pub fn new((canv_width, canv_height): (&i32, &i32), cam: &Cam) -> Self {
         let x_cf = cam.screen_width / *canv_width as f32;
