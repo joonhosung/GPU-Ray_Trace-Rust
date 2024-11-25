@@ -3,68 +3,12 @@ use super::RenderTarget;
 use crate::ray::RayCompute;
 use crate::scene::Scene;
 use crate::elements::{Renderable, Element};
-use super::radiance::{radiance, RadianceInfo};
+use super::radiance::radiance;
 use crate::accel::KdTree;
+use crate::render::cpu_utils::RenderInfo;
+use crate::render::gpu_utils::GPUState;
+use crate::render::gpu_structs::{GPUCamera, GPURenderInfo};
 
-use encase::{DynamicStorageBuffer, ShaderType, UniformBuffer, StorageBuffer};
-use serde::Deserialize;
-
-// RadianceInfo:
-//  debug_single_ray: bool,
-//  dir_light_samp: bool,
-//  russ_roull_info: RussianRoullInfo,
-
-#[derive(Deserialize, Debug, ShaderType)]
-pub struct RenderInfo_gpu {
-    pub width: i32,
-    pub height: i32,
-    pub samps_per_pix: i32,
-    pub assured_depth: i32,
-    pub max_threshold: f32,
-    pub kd_tree_depth: u32,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct RenderInfo {
-    pub width: i32,
-    pub height: i32,
-    pub samps_per_pix: i32,
-    pub rad_info: RadianceInfo,
-    pub kd_tree_depth: usize,
-    pub use_gpu: bool,
-}
-
-// TODO: Optimization candidate
-// Main renderer - need to go through this to see what can be reduced, parallelized, etc.
-pub fn render_to_target<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Scene, update_hook: F, render_info: &RenderInfo) {
-    use rayon::prelude::*;
-
-    let ray_compute = RayCompute::new((&render_target.canv_width, &render_target.canv_height), &scene.cam);
-
-    use std::time::Instant; 
-    let start = Instant::now();
-
-    render_target.buff_mux.lock().fill(0);
-    let mut sample_count: f32 = 0.0;
-    let mut target: Vec<[f32; 3]> = [[0.0, 0.0, 0.0]].repeat((render_target.canv_width * render_target.canv_height).try_into().unwrap());
-
-    // scene decomposing into renderables
-    let (pure_elem_refs, decomposed_groups) = decompose_groups(&scene.members);
-    let renderables: Vec<Renderable> = pure_elem_refs.into_iter().chain(decomposed_groups.iter().map(|e| e.as_ref())).collect();
-    
-    // TODO: original optimizations
-    let unconditional: Vec<_> = renderables.iter().enumerate()
-        .filter_map(|(i, r)| match r.give_aabb() {
-            Some(_) => None,
-            None => Some((i, *r)),
-        })
-        .collect();
-    let elems_and_aabbs: Vec<_> = renderables.iter().enumerate()
-        .filter_map(|(i, r)| r.give_aabb().map(|aabb| (i, *r, aabb)))
-        .collect();
-    let kdtree = KdTree::build(&elems_and_aabbs, &unconditional, render_info.kd_tree_depth);
-
-    // let num_samples = 100000;
 /*
     Buffer design:
      1. render_target.chunk_to_pix => iterates index to x/y pixels. 
@@ -86,45 +30,78 @@ pub fn render_to_target<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Sc
 
      6. render_target.buff_mux => output of renderer. Already a buffer, so need to pass it into the shader to get to write to it
 */
-    
-    // Redo buffer to not need to clone
-    // The example has separate buffers for the texture & normal map, but I think this should contain everything already
-    // 4. renderables
-    let mut renderables_buf = DynamicStorageBuffer::new_with_alignment(&mut renderables.clone(), 64);
-    
-    // 5. render_info
-    let render_info_gpu = RenderInfo_gpu {
-        width: render_info.width,
-        height: render_info.height,
-        samps_per_pix: render_info.samps_per_pix,
-        assured_depth: render_info.rad_info.russ_roull_info.assured_depth,
-        max_threshold: render_info.rad_info.russ_roull_info.max_thres,
-        kd_tree_depth: render_info.kd_tree_depth as u32,
-    };
-    let mut render_info_buf = UniformBuffer::new(&render_info_gpu);
 
-    // 6. render_target.buff_mux
-    // I think this should work
-    let mut render_output_buf = StorageBuffer::new(target);
+pub fn render_to_target<F: Fn() -> ()>(render_target: &RenderTarget, scene: &Scene, update_hook: F, render_info: &RenderInfo) {
+    if render_info.use_gpu {
+        render_to_target_gpu(render_target, scene, update_hook, render_info);
+    } else {
+        render_to_target_cpu(render_target, scene, update_hook, render_info);
+    }
+}
 
+fn print_gpu_results(results: &Vec<f32>) {
+    println!("Got result from compute pipeline with length {}", results.len());   
+    let is_zero = results.iter().all(|&x| x == 0.0);
+    let is_one = results.iter().all(|&x| x == 1.0);
+    println!("All results are zero: {}", is_zero);
+    println!("All results are one: {}", is_one);
+}
+
+fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Scene, _update_hook: F, render_info: &RenderInfo) {
+    let mut gpu_state = GPUState::new();
+    let gpu_camera = GPUCamera::from_cam(&scene.cam);
+    let gpu_render_info = GPURenderInfo::from_render_info(render_info);
+    gpu_state.create_compute_pipeline(&gpu_camera, &gpu_render_info, &render_target);
+    gpu_state.dispatch_compute_pipeline();
+    gpu_state.submit_compute_pipeline();
+    let results: Vec<f32> = gpu_state.block_and_get_single_result();
+    print_gpu_results(&results);
+}
+
+fn render_to_target_cpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Scene, update_hook: F, render_info: &RenderInfo) {
+    use rayon::prelude::*;
+
+    let ray_compute = RayCompute::new((&render_target.canv_width, &render_target.canv_height), &scene.cam);
+
+    use std::time::Instant;
+    let start = Instant::now();
+
+    render_target.buff_mux.lock().fill(0);
+    let mut sample_count: f32 = 0.0;
+    let mut target: Vec<[f32; 3]> = [[0.0, 0.0, 0.0]].repeat((render_target.canv_width * render_target.canv_height).try_into().unwrap());
+
+    // scene decomposing into renderables
+    let (pure_elem_refs, decomposed_groups) = decompose_groups(&scene.members);
+    let renderables: Vec<Renderable> = pure_elem_refs.into_iter().chain(decomposed_groups.iter().map(|e| e.as_ref())).collect();
+
+    let unconditional: Vec<_> = renderables.iter().enumerate()
+        .filter_map(|(i, r)| match r.give_aabb() {
+            Some(_) => None,
+            None => Some((i, *r)),
+        })
+        .collect();
+    let elems_and_aabbs: Vec<_> = renderables.iter().enumerate()
+        .filter_map(|(i, r)| r.give_aabb().map(|aabb| (i, *r, aabb)))
+        .collect();
+    let kdtree = KdTree::build(&elems_and_aabbs, &unconditional, render_info.kd_tree_depth);
+
+    // let num_samples = 100000;
     for r_it in 0..render_info.samps_per_pix {
         target.par_iter_mut()
             .enumerate()
             .map(|(i, pix)| (render_target.chunk_to_pix(i.try_into().unwrap()), pix))
             .for_each(|((x, y), pix)| {
-                let ray = ray_compute.pix_cam_to_rand_ray((x,y), &scene.cam); // TODO: random ray - can we make less random to cover all pixels better?
+                let ray = ray_compute.pix_cam_to_rand_ray((x,y), &scene.cam);
                 let (rgb, _) = radiance(&ray, &kdtree, &renderables, 0, &render_info.rad_info);
                 let rgb: Vec<f32> = rgb.iter().copied().collect();
-                                                          //pix         rgb
+
                 zip(pix.iter_mut(), &rgb).for_each(|(p, r)| {
                     *p = (r + (*p * sample_count)) / (sample_count + 1.0);
                 });
             });
 
         sample_count += 1.0;
-        
-        // Shader output should go here...
-        // Requires a mutex for this --> performance bottleneck?
+
         render_target.buff_mux.lock()
             .par_chunks_mut(4) // pixels have rgba values, so chunk by 4
             .zip(&target)
@@ -132,8 +109,7 @@ pub fn render_to_target<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Sc
                 pix.copy_from_slice(&rgb_f_to_u8(tar));
                 pix[3] = 255; // alpha value
             });
-        
-        // self.sender.send(self.target.buff_mux) from Renderer struct in lib.rs
+
         update_hook();
         println!("render iteration {}: {:?}", r_it, start.elapsed());
     }
@@ -143,7 +119,6 @@ pub fn render_to_target<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Sc
 }
 
 
-// TODO: this quantizes f32 to u8. Happens every iteration for every pixel. Is this necessary?
 fn rgb_f_to_u8(f: &[f32]) -> [u8; 4] {
     let mut out: [u8; 4] = [0; 4];
     // 255.0 * (1.0 - 1.0 / (f * 10.0 + 1.0)) // this from smallpt

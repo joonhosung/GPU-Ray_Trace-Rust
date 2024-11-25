@@ -26,7 +26,7 @@ fn main() {
 
     // Add use_gpu to render_info scheme?
     let scheme = Scheme::from_yml(scheme_dat);
-
+    
     let (region_width, region_height) = (scheme.render_info.width, scheme.render_info.height);
     let (buffer_renderer, render_out) = Renderer::new(region_width, region_height, scheme);
     buffer_renderer.consume_and_do();

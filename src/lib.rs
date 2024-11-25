@@ -5,7 +5,6 @@ use scene::Scene;
 use std::sync::mpsc::{channel, Sender, Receiver};
 pub use render::{RenderInfo, RenderTarget};
 pub use builder::Scheme;
-
 mod scene;
 mod render;
 mod ray;

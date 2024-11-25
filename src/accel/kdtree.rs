@@ -2,14 +2,13 @@ use crate::elements::Renderable;
 use super::{Aabb, PlaneBounds};
 use crate::ray::{Ray, closest_ray_hit, ClosestRayHit};
 use nalgebra::Vector3;
-use encase::ShaderType;
 
-#[derive(ShaderType)]
-pub struct KdTree_gpu<'k> {
-    aabb: Aabb,
-    node: Node<'k>,
-    unconditional: &'k Vec<(usize, Renderable<'k>)>,
-}
+// TODO: Make this GPU compatible
+// pub struct GPUKdTree<'k> {
+//     aabb: Aabb,
+//     node: Node<'k>,
+//     unconditional: &'k Vec<(usize, Renderable<'k>)>,
+// }
 
 // Cannot derive ShaderType -> make custom
 pub struct KdTree<'k> {
