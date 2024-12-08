@@ -25,5 +25,8 @@ env_logger = { version = "0.10", default-features = false, features = [
   "humantime",
 ] }
 egui_extras = { version = "0.27.0", features = ["default", "all_loaders"] }
-wgpu = "23.0.0"
+wgpu = "23.0.1"
 encase = "0.10.0"
+bytemuck = "1.20.0"
+pollster = "0.4.0"
+futures-channel = "0.3"

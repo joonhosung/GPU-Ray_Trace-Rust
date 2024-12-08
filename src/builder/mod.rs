@@ -30,7 +30,7 @@ pub struct Keyframe {
 
 impl Scheme {
     pub fn from_yml(contents: String) -> Scheme {
-        let scheme: Scheme = serde_yaml::from_str(&contents).expect("dodnt parse!!");
+        let scheme: Scheme = serde_yaml::from_str(&contents).expect("didn't parse!!");
         scheme.apply_corrections()
     }
 
