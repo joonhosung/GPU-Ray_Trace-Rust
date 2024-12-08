@@ -4,6 +4,7 @@ use crate::material::*;
 use serde::Deserialize;
 use crate::elements::IsCompleteElement;
 use crate::accel::{Aabb, PlaneBounds};
+use crate::builder::Anim;
 
 #[derive(Deserialize, Debug)]
 // pub enum Coloring<S> {
@@ -24,6 +25,7 @@ pub struct Sphere {
     // pub rgb: Vector3<f32>,
     pub coloring: Coloring, //<Self>,
     pub mat: UniformDiffuseSpec,
+    pub animation: Option<Anim>,
 }
 
 impl IsCompleteElement for Sphere {}

@@ -4,6 +4,7 @@ use crate::elements::mesh::{Mesh, PbrMetalRoughInfo, RgbInfo, NormInfo};
 use image::{DynamicImage, ImageBuffer};
 use nalgebra::Vector2;
 use crate::material::UVRgb32FImage;
+use crate::builder::Anim;
 
 #[derive(Deserialize, Debug)]
 pub struct Model {
@@ -11,6 +12,7 @@ pub struct Model {
     uniform_scale: f32,
     translation: Vector3<f32>,
     euler_angles: [f32; 3],
+    animation: Option<Anim>,
 }
 
 impl Model {
