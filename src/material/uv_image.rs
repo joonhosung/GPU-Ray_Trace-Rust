@@ -4,6 +4,8 @@ use nalgebra::Vector3;
 pub struct UVRgb32FImage (Rgb32FImage);
 
 impl UVRgb32FImage {
+    pub fn get_width(&self) -> u32 { self.0.width() }
+    pub fn get_height(&self) -> u32 { self.0.height() }
     pub fn get_pixel(&self, u: f32, v: f32) -> Vector3<f32> {
         let face = &self.0;
         let width = face.width() as f32;
@@ -18,6 +20,9 @@ impl UVRgb32FImage {
             .to_vec();
         let rgb: [f32; 3] = rgb.try_into().unwrap();
         rgb.into()
+    }
+    pub fn as_raw(&self) -> Vec<f32> {
+        self.0.pixels().flat_map(|p| p.channels().to_vec()).collect()
     }
 }
 

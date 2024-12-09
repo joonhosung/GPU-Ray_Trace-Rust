@@ -12,6 +12,7 @@ mod elements;
 mod accel;
 pub mod renderer;
 pub mod ui_util;
+pub mod types;
 
 pub type ArcMux<T> = Arc<Mutex<T>>;
 pub type BufferMux = Arc<Mutex<Vec<u8>>>;

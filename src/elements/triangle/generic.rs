@@ -12,6 +12,8 @@ pub struct Triangle<V, N, C, D>
 
     pub rgb: C,
     pub diverts_ray: D,
+
+    pub type_name: String
 }
 
 pub trait GimmeNorm {

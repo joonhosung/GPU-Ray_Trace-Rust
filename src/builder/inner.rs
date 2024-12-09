@@ -1,4 +1,6 @@
 use serde::Deserialize;
+use crate::types::GPUElements;
+use crate::elements::mesh;
 use crate::elements::sphere::Sphere;
 // use crate::elements::Element;
 use crate::scene::Member;
@@ -46,6 +48,7 @@ impl From<VecInto<MemberTypes>> for Vec<Member<'_>> {
                                 verts: t.verts,
                                 rgb: t.rgb,
                                 diverts_ray: t.mat,
+                                type_name: "FreeTriangle".to_string(),
                             },
                     )));
                 },
@@ -60,9 +63,52 @@ impl From<VecInto<MemberTypes>> for Vec<Member<'_>> {
 }
 
 
-// Extract all the locations of the members for each frame
 impl VecInto<MemberTypes> {
+    pub fn extract_concrete_types(self: VecInto<MemberTypes>) -> GPUElements {
+        let mut spheres: Vec<Sphere> = vec![];
+        let mut distant_cubemaps: Vec<distant_cube_map::DistantCubeMap> = vec![];
+        let mut free_triangles: Vec<triangle::FreeTriangle> = vec![];
+        let mut meshes: Vec<mesh::Mesh> = vec![];
 
+        self.0.iter().for_each(|m| {
+            match m {
+                Sphere(s) => {
+                    spheres.push(s.clone());
+                },
+                DistantCubeMap(prcs) => {
+                    distant_cubemaps.push(
+                        distant_cube_map::DistantCubeMap {
+                            neg_z: prcs.neg_z.clone().into(),
+                            pos_z: prcs.pos_z.clone().into(),
+                            neg_x: prcs.neg_x.clone().into(),
+                            pos_x: prcs.pos_x.clone().into(),
+                            neg_y: prcs.neg_y.clone().into(),
+                            pos_y: prcs.pos_y.clone().into(),
+                        }
+                    );
+                },
+                FreeTriangle(t) => {
+                    free_triangles.push(
+                        triangle::FreeTriangle {
+                            norm: t.norm.normalize().into(),
+                            verts: t.verts,
+                            rgb: t.rgb,
+                            diverts_ray: t.mat.clone(),
+                            type_name: "FreeTriangle".to_string(),
+                        },
+                    )
+                },
+                Model(model) => {
+                    meshes.extend(model.to_meshes().into_iter());
+                },
+            }
+        });
+
+        return (spheres, distant_cubemaps, free_triangles, meshes);
+    
+    }
+
+    // Extract all the locations of the members for each frame
     pub fn extract_anim(self: VecInto<MemberTypes>, framerate: f32) -> Vec<VecInto<MemberTypes>> {
         
         let max_time: f64 = self.get_last_timestamp() as f64;

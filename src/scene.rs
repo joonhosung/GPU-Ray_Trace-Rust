@@ -1,5 +1,6 @@
 use nalgebra::Vector3;
 use serde::Deserialize;
+use crate::types::GPUElements;
 use crate::elements::{Element, Group};
 
 #[derive(Deserialize, Debug)]
@@ -21,4 +22,9 @@ pub struct Scene<'e> {
 pub enum Member<'e> {
     Elem(Element<'e>),
     Grp(Group),
+}
+
+pub struct GPUScene {
+    pub cam: Cam,
+    pub elements: GPUElements,
 }

@@ -6,6 +6,7 @@ use crate::material::*;
 
 // so it begins .....
 
+
 pub struct Mesh {
     // top layer of vec has each position as a single primitive
     pub poses: Vec<Vec<Vector3<f32>>>,
@@ -21,6 +22,20 @@ pub struct Mesh {
     pub metal_rough_maps: Vec<Option<UVRgb32FImage>>,
 
     pub trans_mat: Matrix4<f32>,
+}
+
+impl Mesh {
+    pub fn check_num_primitives(&self) {
+        let num_primitives = self.poses.len();
+        assert_eq!(num_primitives, self.norms.len());
+        assert_eq!(num_primitives, self.indices.len());
+        assert_eq!(num_primitives, self.rgb_info.len());
+        assert_eq!(num_primitives, self.norm_info.len());
+        assert_eq!(num_primitives, self.metal_rough.len());
+        assert_eq!(num_primitives, self.textures.len());
+        assert_eq!(num_primitives, self.normal_maps.len());
+        assert_eq!(num_primitives, self.metal_rough_maps.len());
+    }
 }
 
 pub struct PbrMetalRoughInfo {
@@ -43,7 +58,7 @@ impl Decomposable for Mesh {
     // the lifetime bound on this function was a solution that required my soul to find
     // allows me to create box of elements with a reference to the Mesh
     // that can exist for as long the Mesh does, skipping any useless Rc/Arc and crap
-    fn decompose_to_elems<'e, 's>(&'s self) -> Box<dyn Iterator<Item = Element<'e>> + 's> 
+    fn decompose_to_elems<'e, 's>(&'s self, mesh_index: u32) -> Box<dyn Iterator<Item = Element<'e>> + 's> 
     where
         's : 'e,
     {
@@ -54,19 +69,23 @@ impl Decomposable for Mesh {
                         Box::new(MeshTriangle {
                             verts: VertexFromMesh {
                                 index: (p, inner_idx),
+                                mesh_index,
                                 mesh: self,
                             },
-                            norm: NormFromMesh::from_mesh_and_inner_idx(self, (p, inner_idx)),
+                            norm: NormFromMesh::from_mesh_and_inner_idx(self, mesh_index, (p, inner_idx)),
     
                             // below needs to be updated when textures come!
                             diverts_ray: DivertsRayFromMesh{
                                 index: (p, inner_idx),
+                                mesh_index,
                                 mesh: self,
                             },
                             rgb: RgbFromMesh{
                                 index: (p, inner_idx),
+                                mesh_index,
                                 mesh: self,
                             },
+                            type_name: "MeshTriangle".to_string(),
                         })} as Element<'e>)
             })
             .flatten())
