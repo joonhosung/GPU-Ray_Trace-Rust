@@ -2,10 +2,10 @@ use std::thread;
 use std::sync::Arc;
 use egui::mutex::Mutex;
 use crate::builder::inner::{MemberTypes, VecInto};
-use crate::scene::Scene;
+use crate::scene::{Scene, GPUScene};
 use std::sync::mpsc::{channel, Sender, Receiver};
 // use ray_trace_rust::ui_util::io_on_render_out;
-pub use crate::render::{RenderTarget, render_to_target};
+pub use crate::render::{RenderTarget, render_to_target_cpu, render_to_target_gpu};
 pub use crate::builder::Scheme;
 use crate::ui_util;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -41,19 +41,26 @@ impl Renderer {
 
     pub fn consume_and_do(self) {
         let start = Instant::now();
+        let use_gpu = self.scheme.render_info.use_gpu.unwrap_or(false);
+
         thread::spawn(move || {
             let renderer_inner = self.clone();
-            let skene = Scene { cam: renderer_inner.scheme.cam.into(), members: renderer_inner.scheme.scene_members.into() };
-            
             let iter_progress = ProgressBar::new(self.scheme.render_info.samps_per_pix as u64);
             iter_progress.set_style(
                 ProgressStyle::default_bar()
                 .template("[{elapsed_precise}] {bar:80.cyan/blue} {pos}/{len} {msg}").unwrap()
             );
+            if !use_gpu {
+                let skene = Scene { cam: renderer_inner.scheme.cam.into(), members: renderer_inner.scheme.scene_members.into() };
+                render_to_target_cpu(&self.target, &skene, || self.update_output(), &self.scheme.render_info, &iter_progress);
+                let elapsed = start.elapsed();
+                println!("Total time elapsed: {:.3?} | Average time per iter: {:.3?}", elapsed, elapsed/self.scheme.render_info.samps_per_pix as u32);
+            }
+            else {
+                let gpu_scene = GPUScene { cam: renderer_inner.scheme.cam.into(), elements: renderer_inner.scheme.scene_members.extract_concrete_types() };
+                render_to_target_gpu(&self.target, &gpu_scene, || self.update_output(), &self.scheme.render_info);
+            }
 
-            render_to_target(&self.target, &skene, || self.update_output(), &self.scheme.render_info, &iter_progress);
-            let elapsed = start.elapsed();
-            println!("Total time elapsed: {:.3?} | Average time per iter: {:.3?}", elapsed, elapsed/self.scheme.render_info.samps_per_pix as u32);
         });
     }
 
@@ -104,7 +111,7 @@ impl Renderer {
                 // Send to normal renderer for each frame
                 // buffer_renderer.consume_and_do();
                 
-                render_to_target(&target, &skene, || tx.send(target.buff_mux.lock().clone()).expect("cannot send??"), &render_info, &iter_progress_inner);
+                render_to_target_cpu(&target, &skene, || tx.send(target.buff_mux.lock().clone()).expect("cannot send??"), &render_info, &iter_progress_inner);
                 // println!("WITHIN THREAD: Finished outputting frame #{frame_num}");
                 // Render receiver
             });

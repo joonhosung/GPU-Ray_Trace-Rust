@@ -3,10 +3,10 @@ use super::{Triangle, GimmeNorm, GimmeRgb, DivertsRay};
 use crate::material::*;
 use crate::ray::Ray;
 
-type UniformColor = Vector3<f32>;
+pub type UniformColor = Vector3<f32>;
 pub type FreeTriangle = Triangle<[Vector3<f32>; 3], UniformNorm, UniformColor, UniformDiffuseSpec>;
 
-pub struct UniformNorm(Vector3<f32>);
+pub struct UniformNorm(pub Vector3<f32>);
 
 impl GimmeRgb for UniformColor {
     fn get_rgb(&self, _barycentric: &(f32, f32)) -> Vector3<f32> { *self }

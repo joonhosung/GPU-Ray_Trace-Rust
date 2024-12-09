@@ -1,6 +1,16 @@
+
 use bytemuck;
 use wgpu::util::DeviceExt;
-use super::gpu_structs::{GPUCamera, GPURenderInfo};
+use crate::types::GPUElements;
+use super::gpu_structs::{
+    GPUCamera,
+    GPURenderInfo,
+    GPUSphere,
+    GPUFreeTriangle,
+    GPUCubeMapData,
+    GPUMeshTriangle
+};
+use crate::elements::mesh::create_mesh_triangles_from_meshes;
 use super::RenderTarget;
 use pollster;
 use futures_channel;
@@ -19,6 +29,10 @@ struct ComputePipeline {
     _camera_buffer: wgpu::Buffer,
     _render_info_buffer: wgpu::Buffer,
     render_target_buffer: wgpu::Buffer,
+    _sphere_buffer: wgpu::Buffer,
+    _cube_map_buffer: wgpu::Buffer,
+    _free_triangle_buffer: wgpu::Buffer,
+    _mesh_triangle_buffer: wgpu::Buffer,
 }
 
 impl ComputePipeline {
@@ -26,7 +40,7 @@ impl ComputePipeline {
         device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: bytemuck::bytes_of(camera),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM,
         })
     }
     
@@ -34,7 +48,7 @@ impl ComputePipeline {
         device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("RenderInfo Buffer"),
             contents: bytemuck::bytes_of(render_info),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM,
         })
     }
 
@@ -48,11 +62,65 @@ impl ComputePipeline {
         })
     }
 
+    fn create_renderables_buffer(device: &wgpu::Device, elements: &GPUElements) -> (wgpu::Buffer, wgpu::Buffer, wgpu::Buffer, wgpu::Buffer) {
+        let (spheres, cube_maps, free_triangles, meshes) = elements;
+        // Add value to the beginning of the buffer
+        // because the GPU cannot handle empty buffers
+        // This value is the number of elements in the buffer
+        let mut sphere_data: Vec<f32> = vec![0.0];
+        let mut cube_map_data: Vec<f32> = vec![0.0];
+        let mut free_triangle_data: Vec<f32> = vec![0.0];
+        let mut mesh_triangle_data: Vec<f32> = vec![0.0];
+        for sphere in spheres {
+            let gpu_sphere = GPUSphere::from_sphere(sphere);
+            sphere_data.extend_from_slice(bytemuck::cast_slice(&[gpu_sphere]));
+            sphere_data[0] += 1.0;
+        }
+        for cube_map in cube_maps {
+            let gpu_cube_map = GPUCubeMapData::from_cube_map(cube_map);
+            cube_map_data.extend(gpu_cube_map.get_raw_buffer());
+            cube_map_data[0] += 1.0;
+        }
+        for free_triangle in free_triangles {
+            let gpu_free_triangle = GPUFreeTriangle::from_free_triangle(free_triangle);
+            free_triangle_data.extend(bytemuck::cast_slice(&[gpu_free_triangle]));
+            free_triangle_data[0] += 1.0;
+        }
+        let mesh_triangles = create_mesh_triangles_from_meshes(meshes);
+        for mesh_triangle in mesh_triangles {
+            let gpu_mesh_triangle = GPUMeshTriangle::from_mesh_triangle(&mesh_triangle);
+            mesh_triangle_data.extend(bytemuck::cast_slice(&[gpu_mesh_triangle]));
+            mesh_triangle_data[0] += 1.0;
+        }
+        let sphere_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Sphere Buffer"),
+            contents: bytemuck::cast_slice(&sphere_data),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+        let cube_map_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("CubeMap Buffer"),
+            contents: bytemuck::cast_slice(&cube_map_data),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+        let free_triangle_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("FreeTriangle Buffer"),
+            contents: bytemuck::cast_slice(&free_triangle_data),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+        let mesh_triangle_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("MeshTriangle Buffer"),
+            contents: bytemuck::cast_slice(&mesh_triangle_data),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+        return (sphere_buffer, cube_map_buffer, free_triangle_buffer, mesh_triangle_buffer);
+    }
+
     pub fn new(
         device: &wgpu::Device,
         camera: &GPUCamera,
         render_info: &GPURenderInfo,
         render_target: &RenderTarget,
+        renderables: &GPUElements 
     ) -> Self {
         assert!(render_info.width % 8 == 0 , "Canv width must be a multiple of 8");
         assert!(render_info.height % 8 == 0 , "Canv height must be a multiple of 8");
@@ -63,9 +131,12 @@ impl ComputePipeline {
 
         let render_target_buffer = ComputePipeline::create_render_target_buffer(device, render_target);
 
+        let (sphere_buffer, cube_map_buffer, free_triangle_buffer, mesh_triangle_buffer) = ComputePipeline::create_renderables_buffer(device, renderables);
+
         // Create bind group layout
+        // For uniform buffers camera and render info
         let first_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Compute Bind Group Layout 0"),
+            label: Some("Compute Bind Group Layout 1"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -90,8 +161,9 @@ impl ComputePipeline {
             ],
         });
 
+        // For render_target_buffer which gets written to
         let second_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Compute Bind Group Layout 1"),
+            label: Some("Compute Bind Group Layout 2"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,  // Note: This is now binding 0 in the new group
@@ -106,6 +178,53 @@ impl ComputePipeline {
             ],
         });
         
+        // For renderables that are read only and storage buffers
+        let third_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Compute Bind Group Layout 3"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,  // Note: This is now binding 0 in the new group
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,  // Note: This is now binding 0 in the new group
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,  // Note: This is now binding 0 in the new group
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,  // Note: This is now binding 0 in the new group
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
         // Create bind group
         let mut bind_groups = Vec::new();
         let first_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -134,8 +253,30 @@ impl ComputePipeline {
             ],
         });
         
-        bind_groups.push(first_bind_group);
-        bind_groups.push(second_bind_group);
+        let third_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Compute Bind Group 2"),
+            layout: &third_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: sphere_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: cube_map_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: free_triangle_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: mesh_triangle_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        bind_groups.extend(vec![first_bind_group, second_bind_group, third_bind_group]);
         
         // Create shader module
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -146,7 +287,7 @@ impl ComputePipeline {
         // Create pipeline layout
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Ray Trace Compute Pipeline Layout"),
-            bind_group_layouts: &[&first_bind_group_layout, &second_bind_group_layout],
+            bind_group_layouts: &[&first_bind_group_layout, &second_bind_group_layout, &third_bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -168,6 +309,10 @@ impl ComputePipeline {
             _camera_buffer: camera_buffer,
             _render_info_buffer: render_info_buffer,
             render_target_buffer,
+            _sphere_buffer: sphere_buffer,
+            _cube_map_buffer: cube_map_buffer,
+            _free_triangle_buffer: free_triangle_buffer,
+            _mesh_triangle_buffer: mesh_triangle_buffer,
         }
     }
 
@@ -203,7 +348,11 @@ impl GPUState {
 
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             required_features: wgpu::Features::empty(),
-            required_limits: wgpu::Limits::default(),
+            required_limits: wgpu::Limits {
+                max_storage_buffer_binding_size: 512 * 1024 * 1024,
+                max_buffer_size: 512 * 1024 * 1024,
+                ..Default::default()
+            },
             label: Some("Ray Tracing Device"),
             memory_hints: Default::default()
         }, 
@@ -212,9 +361,15 @@ impl GPUState {
         Self { device, queue, command_buffer: None, compute_pipeline: None }
     }
     
-    pub fn create_compute_pipeline(&mut self, camera: &GPUCamera, render_info: &GPURenderInfo, render_target: &RenderTarget) {
+    pub fn create_compute_pipeline(
+        &mut self, 
+        camera: &GPUCamera, 
+        render_info: &GPURenderInfo, 
+        render_target: &RenderTarget, 
+        elements: &GPUElements 
+    ) {
         assert!(self.compute_pipeline.is_none(), "An active compute pipeline already exists");
-        let compute_pipeline = ComputePipeline::new(&self.device, camera, render_info, render_target);
+        let compute_pipeline = ComputePipeline::new(&self.device, camera, render_info, render_target, elements);
         self.compute_pipeline = Some(compute_pipeline);
     }
 
@@ -290,4 +445,3 @@ impl GPUState {
     }
 
 }
-

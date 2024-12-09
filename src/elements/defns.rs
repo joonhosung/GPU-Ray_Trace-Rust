@@ -10,7 +10,7 @@ pub type Element<'a> = Box<dyn IsCompleteElement + Send + Sync + 'a>;
 pub type Group = Box<dyn Decomposable + Send + Sync>; // what meshes do as part of the render list
 
 pub trait Decomposable {
-    fn decompose_to_elems<'e, 's>(&'s self) -> Box<dyn Iterator<Item = Element<'e>> + 's> 
+    fn decompose_to_elems<'e, 's>(&'s self, mesh_index: u32) -> Box<dyn Iterator<Item = Element<'e>> + 's> 
     where
         's : 'e;
 }

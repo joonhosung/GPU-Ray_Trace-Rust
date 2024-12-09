@@ -32,6 +32,19 @@ var<uniform> render_info: RenderInfo;
 @group(1) @binding(0)
 var<storage, read_write> render_target: array<f32>;
 
+@group(2) @binding(0)
+var<storage, read> spheres: array<f32>;
+
+@group(2) @binding(1)
+var<storage, read> cube_maps: array<f32>;
+
+@group(2) @binding(2)
+var<storage, read> free_triangles: array<f32>;
+
+@group(2) @binding(3)
+var<storage, read> mesh_triangles: array<f32>;
+
+
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Just to verify we can access the structs (these don't affect the output)

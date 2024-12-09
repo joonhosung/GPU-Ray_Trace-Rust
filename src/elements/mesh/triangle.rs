@@ -10,6 +10,7 @@ pub type MeshTriangle<'a> = Triangle<VertexFromMesh<'a>, NormFromMesh<'a>, RgbFr
 
 pub struct VertexFromMesh<'m> {
     pub index: (usize, usize),
+    pub mesh_index: u32,
     pub mesh: &'m Mesh,
 }
 
@@ -25,17 +26,19 @@ impl Index<usize> for VertexFromMesh<'_> {
 pub struct NormFromMesh<'m> {
     pub index: (usize, usize),
     pub normal_transform: Matrix3<f32>,
+    pub mesh_index: u32,
     pub mesh: &'m Mesh,
 }
 
 //TODO: opt candidate
 // All functions in this impl can be optimized to not thrash cache so much.
 impl<'m> NormFromMesh<'m> {
-    pub fn from_mesh_and_inner_idx(mesh: &'m Mesh, full_idx: (usize, usize)) -> Self {
+    pub fn from_mesh_and_inner_idx(mesh: &'m Mesh, mesh_index: u32, full_idx: (usize, usize)) -> Self {
         NormFromMesh {
             index: full_idx,
             // norm_type: Self::generate_norm_type(mesh, full_idx),
             normal_transform: Self::generate_norm_type(mesh, full_idx),
+            mesh_index,
             mesh,
         }
     }
@@ -155,6 +158,7 @@ impl GimmeNorm for NormFromMesh<'_> {
 
 pub struct RgbFromMesh<'m> {
     pub index: (usize, usize),
+    pub mesh_index: u32,
     pub mesh: &'m Mesh,
 }
 
@@ -174,6 +178,7 @@ impl GimmeRgb for RgbFromMesh<'_> {
 
 pub struct DivertsRayFromMesh<'m> {
     pub index: (usize, usize),
+    pub mesh_index: u32,
     pub mesh: &'m Mesh,
 }
 
@@ -228,4 +233,35 @@ fn tex_coord_from_bary(mesh: &Mesh, coords: &Vec<Vector2<f32>>, barycentric: &(f
     zip(mesh.indices[prim_idx][inner_idx].iter(), baryc.iter())
         .map(|(i, b)| coords[*i] * *b)
         .sum()
+}
+
+pub fn create_mesh_triangles_from_meshes(meshes: &Vec<Mesh>) -> Vec<MeshTriangle> {
+    let mesh_triangles: Vec<MeshTriangle> = meshes.iter().enumerate().flat_map(|(mesh_idx, mesh)| {
+        mesh.indices.iter().enumerate()
+            .map(move |(p, idxs)| {
+                (0..idxs.len()).map(move |inner_idx| {
+                    let mesh_index = mesh_idx as u32;
+                    MeshTriangle {
+                        verts: VertexFromMesh {
+                            index: (p, inner_idx),
+                            mesh_index,
+                            mesh,
+                        },
+                        norm: NormFromMesh::from_mesh_and_inner_idx(mesh, mesh_index, (p, inner_idx)),
+                        diverts_ray: DivertsRayFromMesh {
+                            index: (p, inner_idx),
+                            mesh_index,
+                            mesh,
+                        },
+                        rgb: RgbFromMesh {
+                            index: (p, inner_idx),
+                            mesh_index,
+                            mesh,
+                        },
+                        type_name: "MeshTriangle".to_string(),
+                    }
+                })
+            }).flatten()
+    }).collect();
+    return mesh_triangles;
 }

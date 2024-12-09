@@ -1,45 +1,17 @@
 use std::iter::zip;
 use super::RenderTarget;
 use crate::ray::RayCompute;
-use crate::scene::Scene;
+use crate::scene::{Scene, GPUScene};
 use crate::elements::{Renderable, Element};
 use super::radiance::radiance;
 use crate::accel::KdTree;
 use crate::render::cpu_utils::RenderInfo;
 use crate::render::gpu_utils::GPUState;
-use crate::render::gpu_structs::{GPUCamera, GPURenderInfo};
-use indicatif::{ProgressBar, MultiProgress};
-/*
-    Buffer design:
-     1. render_target.chunk_to_pix => iterates index to x/y pixels. 
-                                   => Not needed to put into buffer. Can iterate within the shader.
-     
-     2. kdtree => see how to organize into buffer?
-               => Takes in renderables - can actually calculate this inside the shader?
-               => If not allowed, we can add as buffer later after non-optimized shader written.
-     
-     3. ray => generated within shader, or should we pass in as a buffer?
-     
-     4. renderables => MAIN THING NEEDED FOR BUFFER!!!
-                    => Storagebuffer
-                    => Size 16 Vec, so it's already aligned. Should be plug & play as a buffer.
-                    => Done, try
-
-     5. render_info => parameters for rendering. Need to organize into buffer
-                    => Struct made. Try to add to shader
-
-     6. render_target.buff_mux => output of renderer. Already a buffer, so need to pass it into the shader to get to write to it
-*/
-
-pub fn render_to_target<F: Fn() -> ()>(render_target: &RenderTarget, scene: &Scene, update_hook: F, render_info: &RenderInfo, progressbars: &ProgressBar) {
-    let use_gpu = render_info.use_gpu.unwrap_or(false);
-    
-    if use_gpu {
-        render_to_target_gpu(render_target, scene, update_hook, render_info);
-    } else {
-        render_to_target_cpu(render_target, scene, update_hook, render_info, progressbars);
-    }
-}
+use crate::render::gpu_structs::{
+    GPUCamera,
+    GPURenderInfo
+};
+use indicatif::ProgressBar;
 
 fn print_gpu_results(results: &Vec<f32>) {
     println!("Got result from compute pipeline with length {}", results.len());   
@@ -49,23 +21,24 @@ fn print_gpu_results(results: &Vec<f32>) {
     println!("All results are one: {}", is_one);
 }
 
-fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Scene, _update_hook: F, render_info: &RenderInfo) {
+pub fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &GPUScene, _update_hook: F, render_info: &RenderInfo) {
     let mut gpu_state = GPUState::new();
     let gpu_camera = GPUCamera::from_cam(&scene.cam);
     let gpu_render_info = GPURenderInfo::from_render_info(render_info);
-    gpu_state.create_compute_pipeline(&gpu_camera, &gpu_render_info, &render_target);
+
+    gpu_state.create_compute_pipeline(&gpu_camera, &gpu_render_info, &render_target, &scene.elements);
     gpu_state.dispatch_compute_pipeline();
     gpu_state.submit_compute_pipeline();
     let results: Vec<f32> = gpu_state.block_and_get_single_result();
     print_gpu_results(&results);
 }
 
-fn render_to_target_cpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Scene, update_hook: F, render_info: &RenderInfo, iter_progress: &ProgressBar) {
+pub fn render_to_target_cpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Scene, update_hook: F, render_info: &RenderInfo, iter_progress: &ProgressBar) {
     use rayon::prelude::*;
 
     let ray_compute = RayCompute::new((&render_target.canv_width, &render_target.canv_height), &scene.cam);
 
-    use std::time::Instant;
+    
     // let start = Instant::now();
 
     render_target.buff_mux.lock().fill(0);
@@ -135,12 +108,15 @@ use crate::scene::Member;
 fn decompose_groups<'e>(members: &'e Vec<Member<'e>>) -> (Vec<Renderable<'e>>, Vec<Element<'e>>) {
     let mut pure_elem_refs: Vec<Renderable> = vec![];
     let mut group_iters: Vec<Box<dyn Iterator<Item = Element>>> = vec![];
-
+    let mut mesh_index: u32 = 0;
     members.iter().for_each(|m| {
         use crate::scene::Member::*;
         match m {
             Elem(e) => { pure_elem_refs.push(e.as_ref()); },
-            Grp(g) => { group_iters.push(g.decompose_to_elems()) },
+            Grp(g) => { 
+                group_iters.push(g.decompose_to_elems(mesh_index));
+                mesh_index += 1;
+            },
         }
     });
 

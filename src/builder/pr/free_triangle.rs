@@ -1,7 +1,6 @@
 use nalgebra::Vector3;
 use crate::material::UniformDiffuseSpec;
 use serde::Deserialize;
-use crate::builder::Anim;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct FreeTriangle {
