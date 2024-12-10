@@ -5,16 +5,15 @@ use std::sync::mpsc::{Sender, Receiver, channel};
 use eframe::{glow, egui_glow};
 use glow::PixelUnpackData;
 use crate::ArcMux;
-use crate::renderer::RenderOut;
 use image::{ImageBuffer, ImageFormat, Rgba};
 use image::imageops::flip_vertical;
 
-pub fn io_on_render_out(render_out: RenderOut, (region_width, region_height): (i32, i32), ui_mode: bool, render_path: Option<String>) {
+pub fn io_on_render_out(render_out: Receiver<Vec<u8>>, (region_width, region_height): (i32, i32), ui_mode: bool, render_path: Option<String>) {
     if ui_mode {
         let buf_q = {
             let (tx, rx) = channel();
             thread::spawn(move || {
-                process_output_routine(render_out.buf_q, (region_width, region_height), Some(tx), render_path);
+                process_output_routine(render_out, (region_width, region_height), Some(tx), render_path);
             });
             rx
         };
@@ -31,7 +30,7 @@ pub fn io_on_render_out(render_out: RenderOut, (region_width, region_height): (i
             })
         ).expect("cannot run ui??");
     } else {
-        process_output_routine(render_out.buf_q, (region_width, region_height), None, render_path);
+        process_output_routine(render_out, (region_width, region_height), None, render_path);
     }
 }
 

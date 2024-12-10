@@ -10,6 +10,6 @@ pub struct FreeTriangle {
 
     pub rgb: Vector3<f32>,
     pub mat: UniformDiffuseSpec,
-    pub animation: Option<Anim>,
+    // pub animation: Option<Anim>,
 }
 

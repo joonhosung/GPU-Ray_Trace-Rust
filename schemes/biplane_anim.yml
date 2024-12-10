@@ -1,7 +1,7 @@
 render_info:
   width: 1200
   height: 600
-  samps_per_pix: 10
+  samps_per_pix: 1
   kd_tree_depth: 17
   rad_info:  
     debug_single_ray: false
@@ -11,7 +11,7 @@ render_info:
       max_thres: 0.5
   use_gpu: false
   animation: true
-
+  framerate: 24
   
 cam:
   d: [0, 0, 4]
@@ -36,10 +36,12 @@ scene_members:
     uniform_scale: 1.8
     translation: [500, 300, 0]
     animation:
-      framerate: 24
-      keyframes: 
+      keyframes:
+        - translation: [500, 300, 0]
+          ease_type: "EaseInOutQuad"
+          time: 0
         - translation: [500, 300, 100] 
-          ease_type: "easeInOutQuad"
+          ease_type: "EaseInOutQuad"
           time: 1
 
 

@@ -1,7 +1,7 @@
 render_info:
   width: 1200
   height: 600
-  samps_per_pix: 1000
+  samps_per_pix: 1
   kd_tree_depth: 17
   rad_info:  
     debug_single_ray: false
@@ -11,6 +11,7 @@ render_info:
       max_thres: 0.5
   use_gpu: false
   animation: false
+  framerate: 0
   
 cam:
   d: [0, 0, 4]

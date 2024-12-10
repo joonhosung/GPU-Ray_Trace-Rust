@@ -10,9 +10,9 @@ use crate::builder::Anim;
 pub struct Model {
     path: String,
     uniform_scale: f32,
-    translation: Vector3<f32>,
-    euler_angles: [f32; 3],
-    animation: Option<Anim>,
+    pub translation: Vector3<f32>,
+    pub euler_angles: [f32; 3],
+    pub animation: Option<Anim>,
 }
 
 impl Model {

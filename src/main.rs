@@ -1,6 +1,6 @@
 use ray_trace_rust::{Scheme, ui_util::io_on_render_out};
 use ray_trace_rust::renderer::Renderer;
-use std::fs::File;
+use std::fs::{self, File};
 use std::path::Path;
 use std::io::prelude::*;
 use std::env;
@@ -40,7 +40,11 @@ fn main() {
     } 
     
     // Animation rendering
-    else { 
+    else {
+        let _ = fs::remove_dir_all("./anim_frames"); // Remove previous run if it exists
+        fs::create_dir_all("./anim_frames").expect("Couldn't create ./anim_frames directory...");
+
+
         let (buffer_renderer, _) = Renderer::new(region_width, region_height, scheme);
         buffer_renderer.consume_and_do_anim(ui_mode);
 

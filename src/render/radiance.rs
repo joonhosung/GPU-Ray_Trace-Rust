@@ -5,13 +5,13 @@ use crate::accel::KdTree;
 use rand::Rng;
 
 use serde::Deserialize;
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 pub struct RadianceInfo {
     pub debug_single_ray: bool,
     pub dir_light_samp: bool,
     pub russ_roull_info: RussianRoullInfo,
 }
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 pub struct RussianRoullInfo {
     pub assured_depth: i32,
     pub max_thres: f32,

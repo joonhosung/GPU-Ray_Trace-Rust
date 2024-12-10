@@ -10,7 +10,6 @@ mod material;
 mod builder;
 mod elements;
 mod accel;
-mod frames;
 pub mod renderer;
 pub mod ui_util;
 
