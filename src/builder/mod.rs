@@ -7,20 +7,20 @@ use nalgebra::Vector3;
 mod inner;
 mod pr;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Scheme {
     pub render_info: RenderInfo,
     pub cam: pr::Cam,
     pub scene_members: VecInto<MemberTypes>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Anim {
     framerate: f32,
     keyframes: Vec<Keyframe>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Keyframe {
     translation: Vector3<f32>, // Same format as Model.translation
     ease_type: String, // TODO: Update to ease_type enum

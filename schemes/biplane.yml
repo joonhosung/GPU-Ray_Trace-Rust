@@ -2,13 +2,15 @@ render_info:
   width: 1200
   height: 600
   samps_per_pix: 1000
-  kd_tree_depth: 2
+  kd_tree_depth: 17
   rad_info:  
     debug_single_ray: false
     dir_light_samp: false
     russ_roull_info:
       assured_depth: 5
       max_thres: 0.5
+  use_gpu: false
+  animation: false
   
 cam:
   d: [0, 0, 4]

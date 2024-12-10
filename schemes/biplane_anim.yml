@@ -9,7 +9,7 @@ render_info:
     russ_roull_info:
       assured_depth: 5
       max_thres: 0.5
-  use_gpu: true
+  use_gpu: false
   animation: true
 
   
@@ -47,7 +47,7 @@ scene_members:
     path: "../../../assets/snowy_mountain_-_terrain/scene.gltf"
     euler_angles: [0, 0, 0]
     uniform_scale: 2000
-    translation: [500, 300, 0]
+    translation: [-20, 100, 50]
 
   #### skybox
   - !DistantCubeMap

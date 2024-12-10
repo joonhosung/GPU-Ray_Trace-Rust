@@ -2,11 +2,11 @@
 use serde::Deserialize;
 use crate::elements::distant_cube_map::FaceImagewUVScale;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct PathwUVScale(String, f32, f32);
 
 // for environment mapping, all rays can hit this
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct DistantCubeMap {
     pub neg_z: PathwUVScale,
     pub pos_z: PathwUVScale,

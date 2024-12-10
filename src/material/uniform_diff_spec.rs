@@ -4,13 +4,13 @@ use rand::Rng;
 use super::interaction::{diff, spec, refract};
 use serde::Deserialize;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct UniformDiffuseSpec {
     pub emissive: Option<Vector3<f32>>,
     pub divert_ray: DivertRayMethod,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub enum DivertRayMethod {
     Spec,
     Diff,

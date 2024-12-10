@@ -6,7 +6,7 @@ use crate::elements::distant_cube_map;
 use crate::elements::triangle;
 use super::pr;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct VecInto<T>(Vec<T>); // wrapper st if elements have into one type to another, easily convert this vec into vec of another
 
 impl From<VecInto<MemberTypes>> for Vec<Member<'_>> {
@@ -63,7 +63,7 @@ where
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub enum MemberTypes {
     Sphere(Sphere),
     DistantCubeMap(pr::DistantCubeMap),

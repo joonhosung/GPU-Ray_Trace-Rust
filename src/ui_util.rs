@@ -4,16 +4,17 @@ use std::thread;
 use std::sync::mpsc::{Sender, Receiver, channel};
 use eframe::{glow, egui_glow};
 use glow::PixelUnpackData;
-use crate::{RenderOut, ArcMux};
+use crate::ArcMux;
+use crate::renderer::RenderOut;
 use image::{ImageBuffer, ImageFormat, Rgba};
 use image::imageops::flip_vertical;
 
-pub fn io_on_render_out(render_out: RenderOut, (region_width, region_height): (i32, i32), ui_mode: bool) {
+pub fn io_on_render_out(render_out: RenderOut, (region_width, region_height): (i32, i32), ui_mode: bool, render_path: Option<String>) {
     if ui_mode {
         let buf_q = {
             let (tx, rx) = channel();
             thread::spawn(move || {
-                process_output_routine(render_out.buf_q, (region_width, region_height), Some(tx));
+                process_output_routine(render_out.buf_q, (region_width, region_height), Some(tx), render_path);
             });
             rx
         };
@@ -30,11 +31,13 @@ pub fn io_on_render_out(render_out: RenderOut, (region_width, region_height): (i
             })
         ).expect("cannot run ui??");
     } else {
-        process_output_routine(render_out.buf_q, (region_width, region_height), None);
+        process_output_routine(render_out.buf_q, (region_width, region_height), None, render_path);
     }
 }
 
-fn process_output_routine(buf_q: Receiver<Vec<u8>>, (region_width, region_height): (i32, i32), tx: Option<Sender<Vec<u8>>>) {
+fn process_output_routine(buf_q: Receiver<Vec<u8>>, (region_width, region_height): (i32, i32), tx: Option<Sender<Vec<u8>>>, render_path: Option<String>) {
+    let path = render_path.unwrap_or("render_out.png".to_string());
+
     loop {
         match buf_q.recv() {
             Ok(b) => { 
@@ -43,7 +46,8 @@ fn process_output_routine(buf_q: Receiver<Vec<u8>>, (region_width, region_height
                 }
                 let img = ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(region_width.try_into().unwrap(), region_height.try_into().unwrap(), b).unwrap();
                 let img = flip_vertical(&img);
-                img.save_with_format("render_out.png", ImageFormat::Png).expect("cannot save??");
+                
+                img.save_with_format(path.clone(), ImageFormat::Png).expect("cannot save??");
             },
             Err(_) => { break; },
         };

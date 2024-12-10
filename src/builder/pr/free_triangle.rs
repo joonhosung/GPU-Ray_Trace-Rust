@@ -3,7 +3,7 @@ use crate::material::UniformDiffuseSpec;
 use serde::Deserialize;
 use crate::builder::Anim;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct FreeTriangle {
     pub verts: [Vector3<f32>; 3],
     pub norm: Vector3<f32>,

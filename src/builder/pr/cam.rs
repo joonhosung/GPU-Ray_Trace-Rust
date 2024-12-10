@@ -2,7 +2,7 @@ use serde::Deserialize;
 use nalgebra::{Vector3, Matrix4};
 use crate::scene;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Cam {
     pub d: Vector3<f32>, // o -> center of screen, has distance
     pub o: Vector3<f32>,

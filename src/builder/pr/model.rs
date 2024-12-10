@@ -6,7 +6,7 @@ use nalgebra::Vector2;
 use crate::material::UVRgb32FImage;
 use crate::builder::Anim;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Model {
     path: String,
     uniform_scale: f32,

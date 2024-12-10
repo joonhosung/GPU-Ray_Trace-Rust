@@ -1,5 +1,6 @@
 use crate::BufferMux;
 
+#[derive(Clone)]
 pub struct RenderTarget {
     pub buff_mux: BufferMux,
     pub canv_width: i32, pub canv_height: i32,

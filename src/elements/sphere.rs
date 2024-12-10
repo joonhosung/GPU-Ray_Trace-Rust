@@ -6,7 +6,7 @@ use crate::elements::IsCompleteElement;
 use crate::accel::{Aabb, PlaneBounds};
 use crate::builder::Anim;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 // pub enum Coloring<S> {
 pub enum Coloring {
     Solid(Vector3<f32>),
@@ -17,7 +17,7 @@ pub struct BounceInfo {
     seeding: SeedingRay,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Sphere {
     pub c: Vector3<f32>,
     pub r: f32,

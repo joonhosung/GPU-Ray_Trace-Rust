@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use super::radiance::RadianceInfo;
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct RenderInfo {
     pub width: i32,
     pub height: i32,
@@ -8,4 +8,5 @@ pub struct RenderInfo {
     pub rad_info: RadianceInfo,
     pub kd_tree_depth: usize,
     pub use_gpu: bool,
+    pub animation: bool,
 }
