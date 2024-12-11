@@ -1,7 +1,7 @@
 render_info:
   width: 600
   height: 1200
-  samps_per_pix: 50
+  samps_per_pix: 100
   kd_tree_depth: 1
   rad_info:  
     debug_single_ray: false
@@ -81,7 +81,7 @@ scene_members:
           time: 8 
         - translation: [-3.0, -10.0, -7.0] # up
           ease_type: "EaseOutQuad"
-          time: 9 
+          time: 8.5 
 
   # - !Sphere
   #   c: [1.0, -1.5, -6.0]

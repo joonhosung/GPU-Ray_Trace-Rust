@@ -8,7 +8,10 @@ use std::sync::mpsc::{channel, Sender, Receiver};
 pub use crate::render::{RenderTarget, render_to_target};
 pub use crate::builder::Scheme;
 use crate::ui_util;
-
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use std::time::Duration;
+use std::time::Instant;
+    
 pub struct RenderOut {
     pub buf_q: Receiver<Vec<u8>>,
 }
@@ -37,15 +40,25 @@ impl Renderer {
     }
 
     pub fn consume_and_do(self) {
+        let start = Instant::now();
         thread::spawn(move || {
             let renderer_inner = self.clone();
             let skene = Scene { cam: renderer_inner.scheme.cam.into(), members: renderer_inner.scheme.scene_members.into() };
+            
+            let iter_progress = ProgressBar::new(self.scheme.render_info.samps_per_pix as u64);
+            iter_progress.set_style(
+                ProgressStyle::default_bar()
+                .template("[{elapsed_precise}] {bar:80.cyan/blue} {pos}/{len} {msg}").unwrap()
+            );
 
-            render_to_target(&self.target, &skene, || self.update_output(), &self.scheme.render_info);
+            render_to_target(&self.target, &skene, || self.update_output(), &self.scheme.render_info, &iter_progress);
+            let elapsed = start.elapsed();
+            println!("Total time elapsed: {:.3?} | Average time per iter: {:.3?}", elapsed, elapsed/self.scheme.render_info.samps_per_pix as u32);
         });
     }
 
     pub fn consume_and_do_anim(self, ui_mode: bool) {
+        let progressbars = MultiProgress::new();
         
         let (region_width, region_height, render_info) = (self.scheme.render_info.width, self.scheme.render_info.height, self.scheme.render_info);
 
@@ -54,8 +67,24 @@ impl Renderer {
         let extracted_frames = self.clone().extract_frames();
         let cam = self.scheme.cam.clone();
         println!("Extracted {} frames", extracted_frames.len());
+        let frame_progress = progressbars.add(ProgressBar::new(extracted_frames.len() as u64));
+        frame_progress.set_style(
+            ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] {bar:80.cyan/blue} {pos}/{len} {msg}").unwrap()
+        );
+        frame_progress.enable_steady_tick(Duration::from_secs(1));
+
+        let iter_progress = progressbars.add(ProgressBar::new(render_info.samps_per_pix as u64));
+        iter_progress.set_style(
+            ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] {bar:80.green/cyan} {pos}/{len} {msg}").unwrap()
+        );
+
         for frame_members in extracted_frames {
-            println!("Generating frame #{frame_num}");
+            let start = Instant::now();
+            let iter_progress_inner = iter_progress.clone();
+            iter_progress_inner.reset();
+            
             let (tx, render_out) = channel();
             thread::spawn(move || {
                 
@@ -75,14 +104,16 @@ impl Renderer {
                 // Send to normal renderer for each frame
                 // buffer_renderer.consume_and_do();
                 
-                render_to_target(&target, &skene, || tx.send(target.buff_mux.lock().clone()).expect("cannot send??"), &render_info);
-                println!("WITHIN THREAD: Finished outputting frame #{frame_num}");
+                render_to_target(&target, &skene, || tx.send(target.buff_mux.lock().clone()).expect("cannot send??"), &render_info, &iter_progress_inner);
+                // println!("WITHIN THREAD: Finished outputting frame #{frame_num}");
                 // Render receiver
             });
             
             ui_util::io_on_render_out(render_out, (region_width.clone(), region_height.clone()), ui_mode.clone(), Some(format!("anim_frames/{frame_num}.png")));
-            println!("Finished outputting frame #{frame_num}");
+            // println!("Finished outputting frame #{frame_num}");
             frame_num += 1;
+            frame_progress.inc(1);
+            frame_progress.set_message(format!("Rendering frames... Previous frame: {:.3?}", start.elapsed()));
         }
     }
 

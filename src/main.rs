@@ -31,16 +31,11 @@ fn main() {
     let scheme = Scheme::from_yml(scheme_dat);
     
     let (region_width, region_height) = (scheme.render_info.width, scheme.render_info.height);
-    
-
-    // let Scheme {
-    //     cam, render_info, scene_members,
-    //     ..
-    // } = scheme.take().unwrap();
-
+   
+    let animate = scheme.render_info.animation.unwrap_or(false);
     
     // Normal rendering
-    if !scheme.render_info.animation {
+    if !animate {
         let (buffer_renderer, render_out) = Renderer::new(region_width, region_height, scheme);
         buffer_renderer.consume_and_do();
         io_on_render_out(render_out, (region_width, region_height), ui_mode, None);

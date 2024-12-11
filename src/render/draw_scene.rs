@@ -8,7 +8,7 @@ use crate::accel::KdTree;
 use crate::render::cpu_utils::RenderInfo;
 use crate::render::gpu_utils::GPUState;
 use crate::render::gpu_structs::{GPUCamera, GPURenderInfo};
-
+use indicatif::{ProgressBar, MultiProgress};
 /*
     Buffer design:
      1. render_target.chunk_to_pix => iterates index to x/y pixels. 
@@ -31,11 +31,13 @@ use crate::render::gpu_structs::{GPUCamera, GPURenderInfo};
      6. render_target.buff_mux => output of renderer. Already a buffer, so need to pass it into the shader to get to write to it
 */
 
-pub fn render_to_target<F: Fn() -> ()>(render_target: &RenderTarget, scene: &Scene, update_hook: F, render_info: &RenderInfo) {
-    if render_info.use_gpu {
+pub fn render_to_target<F: Fn() -> ()>(render_target: &RenderTarget, scene: &Scene, update_hook: F, render_info: &RenderInfo, progressbars: &ProgressBar) {
+    let use_gpu = render_info.use_gpu.unwrap_or(false);
+    
+    if use_gpu {
         render_to_target_gpu(render_target, scene, update_hook, render_info);
     } else {
-        render_to_target_cpu(render_target, scene, update_hook, render_info);
+        render_to_target_cpu(render_target, scene, update_hook, render_info, progressbars);
     }
 }
 
@@ -58,13 +60,13 @@ fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Sc
     print_gpu_results(&results);
 }
 
-fn render_to_target_cpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Scene, update_hook: F, render_info: &RenderInfo) {
+fn render_to_target_cpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Scene, update_hook: F, render_info: &RenderInfo, iter_progress: &ProgressBar) {
     use rayon::prelude::*;
 
     let ray_compute = RayCompute::new((&render_target.canv_width, &render_target.canv_height), &scene.cam);
 
     use std::time::Instant;
-    let start = Instant::now();
+    // let start = Instant::now();
 
     render_target.buff_mux.lock().fill(0);
     let mut sample_count: f32 = 0.0;
@@ -86,7 +88,7 @@ fn render_to_target_cpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Sc
     let kdtree = KdTree::build(&elems_and_aabbs, &unconditional, render_info.kd_tree_depth);
 
     // let num_samples = 100000;
-    for r_it in 0..render_info.samps_per_pix {
+    for _ in 0..render_info.samps_per_pix {
         target.par_iter_mut()
             .enumerate()
             .map(|(i, pix)| (render_target.chunk_to_pix(i.try_into().unwrap()), pix))
@@ -111,11 +113,14 @@ fn render_to_target_cpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Sc
             });
 
         update_hook();
-        println!("render iteration {}: {:?}", r_it, start.elapsed());
+        iter_progress.inc(1);
+        iter_progress.set_message(format!("Frame progress..."));// elapsed:{:?}", start.elapsed()));
+        // println!("render iteration {}: {:?}", r_it, start.elapsed());
     }
-
-    let elapsed = start.elapsed();
-    println!("elapsed {:?}", elapsed);
+    // let elapsed = start.elapsed();
+    iter_progress.finish();
+    // println!("Finished frame! Elapsed: {elapsed:?} | Average per iter: {:.3?}\n", (elapsed/render_info.samps_per_pix as u32));
+    // println!("elapsed {:?}", elapsed);
 }
 
 

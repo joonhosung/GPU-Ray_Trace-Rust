@@ -7,7 +7,7 @@ pub struct RenderInfo {
     pub samps_per_pix: i32,
     pub rad_info: RadianceInfo,
     pub kd_tree_depth: usize,
-    pub use_gpu: bool,
-    pub animation: bool,
+    pub use_gpu: Option<bool>,
+    pub animation: Option<bool>,
     pub framerate: Option<f32>,
 }
