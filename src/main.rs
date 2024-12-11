@@ -18,7 +18,7 @@ fn main() {
         Some(p) => p,
         None => {panic!("no yaml path specified");},
     };
-    let ui_mode = match env::args().nth(2) {
+    let mut ui_mode = match env::args().nth(2) {
         Some(u) => !(u == "no_ui"),
         None => true,
     };
@@ -50,11 +50,13 @@ fn main() {
     else {
         let framerate: f32 = scheme.render_info.framerate.unwrap();
         
+        // ui mode not allowed for animation mode. Try to fix?
+        ui_mode = false;
         // COMMENT FOR NO RENDERING!
-        // let _ = fs::remove_dir_all("./anim_frames"); // Remove previous run if it exists
-        // fs::create_dir_all("./anim_frames").expect("Couldn't create ./anim_frames directory...");
-        // let (buffer_renderer, _) = Renderer::new(region_width, region_height, scheme);
-        // buffer_renderer.consume_and_do_anim(ui_mode);
+        let _ = fs::remove_dir_all("./anim_frames"); // Remove previous run if it exists
+        fs::create_dir_all("./anim_frames").expect("Couldn't create ./anim_frames directory...");
+        let (buffer_renderer, _) = Renderer::new(region_width, region_height, scheme);
+        buffer_renderer.consume_and_do_anim(ui_mode);
 
 
 
