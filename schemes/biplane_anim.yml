@@ -1,7 +1,7 @@
 render_info:
   width: 1200
   height: 600
-  samps_per_pix: 1
+  samps_per_pix: 5
   kd_tree_depth: 17
   rad_info:  
     debug_single_ray: false
@@ -37,10 +37,10 @@ scene_members:
     translation: [500, 300, 0]
     animation:
       keyframes:
-        - translation: [500, 300, 0]
+        - translation: [500, 300, 1000]
           ease_type: "EaseInOutQuad"
           time: 0
-        - translation: [500, 300, 100] 
+        - translation: [500, 300, -1000] 
           ease_type: "EaseInOutQuad"
           time: 1
 

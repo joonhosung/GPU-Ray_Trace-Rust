@@ -1,6 +1,7 @@
 use std::thread;
 use std::sync::Arc;
 use egui::mutex::Mutex;
+use crate::builder::inner::{MemberTypes, VecInto};
 use crate::scene::Scene;
 use std::sync::mpsc::{channel, Sender, Receiver};
 // use ray_trace_rust::ui_util::io_on_render_out;
@@ -50,9 +51,10 @@ impl Renderer {
 
         // After extracting the locations of the each frame, render them
         let mut frame_num = 0;
-        let extracted_frames = self.extract_frames();
+        let extracted_frames = self.clone().extract_frames();
+        let cam = self.scheme.cam.clone();
         println!("Extracted {} frames", extracted_frames.len());
-        for frame_scene in extracted_frames {
+        for frame_members in extracted_frames {
             println!("Generating frame #{frame_num}");
             let (tx, render_out) = channel();
             thread::spawn(move || {
@@ -69,30 +71,31 @@ impl Renderer {
                     canv_width: region_width_inner, 
                     canv_height: region_height_inner,
                 };
-                // let skene = Scene { cam: frame_scheme.cam.into(), members: frame_scheme.scene_members.into() };
+                let skene = Scene { cam: cam.into(), members: frame_members.into() };
                 // Send to normal renderer for each frame
                 // buffer_renderer.consume_and_do();
                 
-                render_to_target(&target, &frame_scene, || tx.send(target.buff_mux.lock().clone()).expect("cannot send??"), &render_info);
+                render_to_target(&target, &skene, || tx.send(target.buff_mux.lock().clone()).expect("cannot send??"), &render_info);
                 println!("WITHIN THREAD: Finished outputting frame #{frame_num}");
                 // Render receiver
-            }).join().unwrap();
+            });
             
-            ui_util::io_on_render_out(render_out, (region_width.clone(), region_height.clone()), ui_mode.clone(), Some(format!("anim_frames/frame_{frame_num}.png")));
+            ui_util::io_on_render_out(render_out, (region_width.clone(), region_height.clone()), ui_mode.clone(), Some(format!("anim_frames/{frame_num}.png")));
             println!("Finished outputting frame #{frame_num}");
             frame_num += 1;
         }
     }
 
     // Extract the locations of all scene members for each frame of the animation
-    fn extract_frames<'a>(self) -> Vec<Scene<'a>> {
-        let mut scenes: Vec<Scene> = Vec::new();
+    fn extract_frames<'a>(self) -> Vec<VecInto<MemberTypes>>{//Vec<Scene<'a>> {
+        let mut scenes:  Vec<VecInto<MemberTypes>> = Vec::new();
         let updated_locations = self.scheme.clone();
         
         for member_frame in self.scheme.clone().scene_members.extract_anim(updated_locations.render_info.framerate.unwrap()) {
             // println!("Extracted frame: {member_frame:?}");
-            let skene: Scene =  Scene { cam: updated_locations.clone().cam.into(), members: member_frame.into() };
-            scenes.push(skene);
+            // let skene: Scene =  Scene { cam: updated_locations.clone().cam.into(), members: member_frame.into() };
+            // scenes.push(skene);
+            scenes.push(member_frame);
         }
         scenes
     }

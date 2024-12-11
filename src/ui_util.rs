@@ -48,7 +48,7 @@ fn process_output_routine(buf_q: Receiver<Vec<u8>>, (region_width, region_height
                 
                 img.save_with_format(path.clone(), ImageFormat::Png).expect("cannot save??");
             },
-            Err(_) => { break; },
+            Err(_) => { break; }, // Breaks when the receiver goes out of scope.
         };
     }
 }
