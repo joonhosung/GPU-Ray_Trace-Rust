@@ -97,17 +97,13 @@ impl ComputePipeline {
 
     fn create_renderables_buffer(device: &wgpu::Device, elements: &GPUElements) -> (wgpu::Buffer, wgpu::Buffer, wgpu::Buffer, wgpu::Buffer) {
         let (spheres, cube_maps, free_triangles, meshes) = elements;
-        // Add value to the beginning of the buffer
-        // because the GPU cannot handle empty buffers
-        // This value is the number of elements in the buffer
-        let mut sphere_data: Vec<f32> = vec![0.0];
+        let mut sphere_data: Vec<GPUSphere> = vec![];
         let mut cube_map_data: Vec<f32> = vec![0.0];
-        let mut free_triangle_data: Vec<f32> = vec![0.0];
-        let mut mesh_triangle_data: Vec<f32> = vec![0.0];
+        let mut free_triangle_data: Vec<GPUFreeTriangle> = vec![];
+        let mut mesh_triangle_data: Vec<GPUMeshTriangle> = vec![];
         for sphere in spheres {
             let gpu_sphere = GPUSphere::from_sphere(sphere);
-            sphere_data.extend_from_slice(bytemuck::cast_slice(&[gpu_sphere]));
-            sphere_data[0] += 1.0;
+            sphere_data.push(gpu_sphere);
         }
         for cube_map in cube_maps {
             let gpu_cube_map = GPUCubeMapData::from_cube_map(cube_map);
@@ -116,15 +112,25 @@ impl ComputePipeline {
         }
         for free_triangle in free_triangles {
             let gpu_free_triangle = GPUFreeTriangle::from_free_triangle(free_triangle);
-            free_triangle_data.extend(bytemuck::cast_slice(&[gpu_free_triangle]));
-            free_triangle_data[0] += 1.0;
+            free_triangle_data.push(gpu_free_triangle);
         }
         let mesh_triangles = create_mesh_triangles_from_meshes(meshes);
         for mesh_triangle in mesh_triangles {
             let gpu_mesh_triangle = GPUMeshTriangle::from_mesh_triangle(&mesh_triangle);
-            mesh_triangle_data.extend(bytemuck::cast_slice(&[gpu_mesh_triangle]));
-            mesh_triangle_data[0] += 1.0;
+            mesh_triangle_data.push(gpu_mesh_triangle);
         }
+        // WGSL does not support empty buffers
+        // create a dummy value with is_valid = 0 if buffer is empty
+        if sphere_data.is_empty() {
+            sphere_data.push(GPUSphere::get_empty());
+        }
+        if free_triangle_data.is_empty() {
+            free_triangle_data.push(GPUFreeTriangle::get_empty());
+        }
+        if mesh_triangle_data.is_empty() {
+            mesh_triangle_data.push(GPUMeshTriangle::get_empty());
+        }
+
         let sphere_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Sphere Buffer"),
             contents: bytemuck::cast_slice(&sphere_data),

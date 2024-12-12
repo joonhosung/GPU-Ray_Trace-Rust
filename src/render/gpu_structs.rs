@@ -123,10 +123,31 @@ pub struct GPUFreeTriangle {
     pub vert3: [f32; 4],
     pub norm: [f32; 4],
     pub rgb: [f32; 4],
+    pub is_valid: u32,
+    _padding: [f32; 3],
     pub material: GPUUniformDiffuseSpec,
 }
 
 impl GPUFreeTriangle {
+    pub fn get_empty() -> Self {
+        Self {
+            vert1: [0.0; 4],
+            vert2: [0.0; 4],
+            vert3: [0.0; 4],
+            norm: [0.0; 4],
+            rgb: [0.0; 4],
+            is_valid: 0,
+            _padding: [0.0; 3],
+            material: GPUUniformDiffuseSpec {
+                emissive: [0.0; 3],
+                has_emissive: 0,
+                divert_ray_type: 0,
+                diffp: 0.0,
+                n_out: 0.0,
+                n_in: 0.0,
+            },
+        }
+    }
     pub fn from_free_triangle(triangle: &FreeTriangle) -> Self {
         Self {
             vert1: [triangle.verts[0].x, triangle.verts[0].y, triangle.verts[0].z, 1.0],
@@ -134,6 +155,8 @@ impl GPUFreeTriangle {
             vert3: [triangle.verts[2].x, triangle.verts[2].y, triangle.verts[2].z, 1.0],
             norm: [triangle.norm.0.x, triangle.norm.0.y, triangle.norm.0.z, 0.0],
             rgb: [triangle.rgb.x, triangle.rgb.y, triangle.rgb.z, 0.0],
+            is_valid: 1,
+            _padding: [0.0; 3],
             material: GPUUniformDiffuseSpec::from_material(&triangle.diverts_ray),
         }
     }
@@ -147,21 +170,40 @@ impl GPUFreeTriangle {
 pub struct GPUSphere {
     pub center: [f32; 4],
     pub coloring: [f32; 4],
-    pub material: GPUUniformDiffuseSpec,
     pub radius: f32,
-    pub _padding: [f32; 3],
+    pub is_valid: u32,
+    pub _padding: [f32; 2],
+    pub material: GPUUniformDiffuseSpec,
 }
 
 impl GPUSphere {
+    pub fn get_empty() -> Self {
+        Self {
+            center: [0.0; 4],
+            coloring: [0.0; 4],
+            radius: 0.0,
+            is_valid: 0,
+            _padding: [0.0; 2],
+            material: GPUUniformDiffuseSpec {
+                emissive: [0.0; 3],
+                has_emissive: 0,
+                divert_ray_type: 0,
+                diffp: 0.0,
+                n_out: 0.0,
+                n_in: 0.0,
+            },
+        }
+    }
     pub fn from_sphere(sphere: &Sphere) -> Self {
         Self {
             center: [sphere.c.x, sphere.c.y, sphere.c.z, 1.0],
             coloring: match &sphere.coloring {
                 Coloring::Solid(c) => [c.x, c.y, c.z, 0.0],
             },
-            material: GPUUniformDiffuseSpec::from_material(&sphere.mat),
             radius: sphere.r,
-            _padding: [0.0; 3],
+            is_valid: 1,
+            _padding: [0.0; 2],
+            material: GPUUniformDiffuseSpec::from_material(&sphere.mat),
         }
     }
 }
@@ -495,15 +537,46 @@ pub struct GPUMeshTriangle {
     pub norm: GPUNormFromMesh,
     pub rgb: GPURgbFromMesh,
     pub diverts_ray: GPUDivertsRayFromMesh,
+    pub is_valid: u32,
+    _padding: [u32; 3],
 }
 
 impl GPUMeshTriangle {
+    pub fn get_empty() -> Self {
+        Self {
+            verts: GPUVertexFromMesh {
+                index: [0; 2],
+                mesh_index: 0,
+                _padding: 0,
+            },
+            norm: GPUNormFromMesh {
+                index: [0; 2],
+                mesh_index: 0,
+                _padding: 0,
+                normal_transform: [0.0; 12],
+            },
+            rgb: GPURgbFromMesh {
+                index: [0; 2],
+                mesh_index: 0,
+                _padding: 0,
+            },
+            diverts_ray: GPUDivertsRayFromMesh {
+                index: [0; 2],
+                mesh_index: 0,
+                _padding: 0,
+            },
+            is_valid: 0,
+            _padding: [0; 3],
+        }
+    }
     pub fn from_mesh_triangle(mesh_triangle: &MeshTriangle) -> Self {
         Self {
             verts: GPUVertexFromMesh::from_vertex_from_mesh(&mesh_triangle.verts),
             norm: GPUNormFromMesh::from_norm_from_mesh(&mesh_triangle.norm),
             rgb: GPURgbFromMesh::from_rgb_from_mesh(&mesh_triangle.rgb),
             diverts_ray: GPUDivertsRayFromMesh::from_diverts_ray_from_mesh(&mesh_triangle.diverts_ray),
+            is_valid: 1,
+            _padding: [0; 3],
         }
     }
 }

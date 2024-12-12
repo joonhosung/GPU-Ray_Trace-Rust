@@ -36,9 +36,10 @@ struct UniformDiffuseSpec {
 struct Sphere {
     center: vec4<f32>,
     coloring: vec4<f32>,
-    material: UniformDiffuseSpec,
     radius: f32,
-    padding: vec3<f32>,
+    is_valid: u32,
+    padding: vec2<f32>,
+    material: UniformDiffuseSpec,
 }
 
 struct FreeTriangle {
@@ -47,6 +48,8 @@ struct FreeTriangle {
     vert3: vec4<f32>,
     norm: vec4<f32>,
     rgb: vec4<f32>,
+    is_valid: u32,
+    padding: vec3<f32>,
     material: UniformDiffuseSpec,
 }
 
@@ -56,6 +59,41 @@ struct CubeMapFaceHeader {
     uv_scale_x: f32,
     uv_scale_y: f32,
 }
+
+struct VertexFromMesh {
+    index: vec2<u32>,
+    mesh_index: u32,
+    padding: u32,
+}
+
+struct NormFromMesh {
+    index: vec2<u32>,
+    mesh_index: u32,
+    padding: u32,
+    normal_transform: mat3x4<f32>, // Last row is padded to all zeros
+}
+
+struct RgbFromMesh {
+    index: vec2<u32>,
+    mesh_index: u32,
+    padding: u32,
+}
+
+struct DivertsRayFromMesh {
+    index: vec2<u32>,
+    mesh_index: u32,
+    padding: u32,
+}
+
+struct MeshTriangle {
+    verts: VertexFromMesh,
+    norms: NormFromMesh,
+    rgb: RgbFromMesh,
+    diverts_ray: DivertsRayFromMesh,
+    is_valid: u32,
+    padding: vec3<f32>,
+}
+
 struct Ray {
     direction: vec3<f32>,
     origin: vec3<f32>,
@@ -108,7 +146,7 @@ var<storage, read> mesh_chunk_2: array<f32>;
 var<storage, read> mesh_chunk_3: array<f32>;
 
 @group(2) @binding(4)
-var<storage, read> mesh_triangles: array<f32>;
+var<storage, read> mesh_triangles: array<MeshTriangle>;
 
 @group(3) @binding(0)
 var<storage, read> spheres: array<Sphere>;
@@ -130,7 +168,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // PUT PIXEL GENRATION HERE
     for (var i = 0u; i < render_info.samps_per_pix; i += 1u) {
         let ray = pix_cam_to_rand_ray(ray_compute, vec2<u32>(global_id.x, global_id.y), camera, &seed);
-        let ray_intersect = get_ray_intersect_test(ray);
+        let ray_intersect = get_ray_intersect(ray);
         render_target[pixel_index] = (ray_intersect.colour.x + (render_target[pixel_index] * sample_count)) / (sample_count + 1.0);
         render_target[pixel_index + 1] = (ray_intersect.colour.y + (render_target[pixel_index + 1] * sample_count)) / (sample_count + 1.0);
         render_target[pixel_index + 2] = (ray_intersect.colour.z + (render_target[pixel_index + 2] * sample_count)) / (sample_count + 1.0);
@@ -228,7 +266,10 @@ fn pix_cam_raw_ray(compute: RayCompute, pixel: vec2<u32>, camera: Camera, rng: p
 }
 
 fn get_ray_intersect_test(ray: Ray) -> Intersection {
-    return Intersection(spheres[0].coloring, SPHERE, 0u, false, 1.0);
+    if (arrayLength(&spheres) == 8u) {
+        return Intersection(vec4<f32>(1.0, 0.0, 0.0, 1.0), SPHERE, 0u, false, 1.0);
+    }
+    return Intersection(vec4<f32>(0.5f, 0.5f, 0.5f, 1f), CUBEMAP, 0u, false, MAXF);
 }
 
 fn get_ray_intersect(ray: Ray) -> Intersection {
@@ -240,13 +281,15 @@ fn get_ray_intersect(ray: Ray) -> Intersection {
     
 
     // Iterate through every sphere 
-    for(var i = 0u; i < arrayLength(&spheres); i++) { 
-        let got_dist = get_sphere_intersect(ray_dir, ray_orig, i);
-        if got_dist != -1f {
-            if got_dist < closest_intersect {
-                closest_intersect = got_dist;
-                
-                intersect = Intersection(spheres[i].coloring, SPHERE, i, false, got_dist);
+    if (contains_valid_spheres()) {
+        for (var i = 0u; i < arrayLength(&spheres); i++) { 
+            let got_dist = get_sphere_intersect(ray_dir, ray_orig, i);
+            if got_dist != -1f {
+                if got_dist < closest_intersect {
+                    closest_intersect = got_dist;
+                    
+                    intersect = Intersection(spheres[i].coloring, SPHERE, i, false, got_dist);
+                }
             }
         }
     }
@@ -293,6 +336,27 @@ fn get_sphere_intersect(ray_dir: vec3<f32>, ray_orig: vec3<f32>, i: u32) -> f32 
     }
 
     return f32(-1.0); 
+}
+
+fn contains_valid_spheres() -> bool {
+    if arrayLength(&spheres) == 1u && spheres[0].is_valid == 0u {
+        return false;
+    }
+    return true;
+}
+
+fn contains_valid_free_triangles() -> bool {
+    if arrayLength(&free_triangles) == 1u && free_triangles[0].is_valid == 0u {
+        return false;
+    }
+    return true;
+}
+
+fn contains_valid_mesh_triangles() -> bool {
+    if arrayLength(&mesh_triangles) == 1u && mesh_triangles[0].is_valid == 0u {
+        return false;
+    }
+    return true;
 }
 
 // Generate random float between 0 and 1
