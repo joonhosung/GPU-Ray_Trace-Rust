@@ -2,6 +2,7 @@
 use bytemuck;
 use wgpu::util::DeviceExt;
 use crate::elements::mesh;
+use crate::render::gpu_structs::GPUCubeMapFaceHeader;
 use crate::types::{GPUElements, GPU_NUM_MESH_BUFFERS};
 use super::gpu_structs::{
     GPUCamera,
@@ -34,8 +35,8 @@ struct ComputePipeline {
     _mesh_buffers: Vec<wgpu::Buffer>,
     _mesh_triangle_buffer: wgpu::Buffer,
     _sphere_buffer: wgpu::Buffer,
-    _cube_map_offsets_buffer: wgpu::Buffer,
-    _cube_map_buffer: wgpu::Buffer,
+    _cube_map_headers_buffer: wgpu::Buffer,
+    _cube_map_data_buffer: wgpu::Buffer,
     _free_triangle_buffer: wgpu::Buffer,
 }
 
@@ -99,21 +100,22 @@ impl ComputePipeline {
     fn create_renderables_buffer(device: &wgpu::Device, elements: &GPUElements) -> (wgpu::Buffer, wgpu::Buffer, wgpu::Buffer, wgpu::Buffer, wgpu::Buffer) {
         let (spheres, cube_maps, free_triangles, meshes) = elements;
         let mut sphere_data: Vec<GPUSphere> = vec![];
+        let mut cube_map_headers: Vec<GPUCubeMapFaceHeader> = vec![];
         let mut cube_map_data: Vec<f32> = vec![];
         // contains the offsets into the cube maps buffer
         // each offset points to the header of a cube map
-        let mut cube_map_offsets: Vec<i32> = vec![];
         let mut free_triangle_data: Vec<GPUFreeTriangle> = vec![];
         let mut mesh_triangle_data: Vec<GPUMeshTriangle> = vec![];
         for sphere in spheres {
             let gpu_sphere = GPUSphere::from_sphere(sphere);
             sphere_data.push(gpu_sphere);
         }
+        assert!(cube_maps.len() <= 1, "Expected maximum 1 cube map");
         for cube_map in cube_maps {
-            cube_map_offsets.push(cube_map_data.len() as i32);
             let gpu_cube_map = GPUCubeMapData::from_cube_map(cube_map);
-            cube_map_data.extend(gpu_cube_map.get_raw_buffer());
-            cube_map_data[0] += 1.0;
+            let (headers, data) = gpu_cube_map.get_raw_buffers();
+            cube_map_headers.extend(headers);
+            cube_map_data.extend(data);
         }
         for free_triangle in free_triangles {
             let gpu_free_triangle = GPUFreeTriangle::from_free_triangle(free_triangle);
@@ -129,13 +131,12 @@ impl ComputePipeline {
         if sphere_data.is_empty() {
             sphere_data.push(GPUSphere::get_empty());
         }
-        // If we don't have any cube maps, we need to create a dummy value
-        if cube_map_data.is_empty() {
-            cube_map_data.push(-1 as f32);
-            cube_map_offsets.push(-1);
-        }
         if free_triangle_data.is_empty() {
             free_triangle_data.push(GPUFreeTriangle::get_empty());
+        }
+        if cube_map_headers.is_empty() {
+            cube_map_headers.push(GPUCubeMapFaceHeader::get_empty());
+            cube_map_data.push(0.0);
         }
         if mesh_triangle_data.is_empty() {
             mesh_triangle_data.push(GPUMeshTriangle::get_empty());
@@ -146,12 +147,12 @@ impl ComputePipeline {
             contents: bytemuck::cast_slice(&sphere_data),
             usage: wgpu::BufferUsages::STORAGE,
         });
-        let cube_map_offsets_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("CubeMap Offsets Buffer"),
-            contents: bytemuck::cast_slice(&cube_map_offsets),
+        let cube_map_headers_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("CubeMap Header Buffer"),
+            contents: bytemuck::cast_slice(&cube_map_headers),
             usage: wgpu::BufferUsages::STORAGE,
         });
-        let cube_map_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let cube_map_data_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("CubeMap Buffer"),
             contents: bytemuck::cast_slice(&cube_map_data),
             usage: wgpu::BufferUsages::STORAGE,
@@ -166,7 +167,7 @@ impl ComputePipeline {
             contents: bytemuck::cast_slice(&mesh_triangle_data),
             usage: wgpu::BufferUsages::STORAGE,
         });
-        return (sphere_buffer, cube_map_offsets_buffer, cube_map_buffer, free_triangle_buffer, mesh_triangle_buffer);
+        return (sphere_buffer, cube_map_headers_buffer, cube_map_data_buffer, free_triangle_buffer, mesh_triangle_buffer);
     }
 
     pub fn new(
@@ -188,7 +189,7 @@ impl ComputePipeline {
         let mesh_buffers = ComputePipeline::create_mesh_buffers(device, &renderables.3);
         assert!(mesh_buffers.len() == GPU_NUM_MESH_BUFFERS, "Currently supports only {} mesh buffers", GPU_NUM_MESH_BUFFERS);
 
-        let (sphere_buffer, cube_map_offsets_buffer, cube_map_buffer, free_triangle_buffer, mesh_triangle_buffer) = 
+        let (sphere_buffer, cube_map_headers_buffer, cube_map_data_buffer, free_triangle_buffer, mesh_triangle_buffer) = 
             ComputePipeline::create_renderables_buffer(device, renderables);
 
         // Create bind group layout
@@ -355,11 +356,11 @@ impl ComputePipeline {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: cube_map_offsets_buffer.as_entire_binding(),
+                    resource: cube_map_headers_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: cube_map_buffer.as_entire_binding(),
+                    resource: cube_map_data_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
@@ -405,8 +406,8 @@ impl ComputePipeline {
             _mesh_buffers: mesh_buffers,
             _mesh_triangle_buffer: mesh_triangle_buffer,
             _sphere_buffer: sphere_buffer,
-            _cube_map_offsets_buffer: cube_map_offsets_buffer,
-            _cube_map_buffer: cube_map_buffer,
+            _cube_map_headers_buffer: cube_map_headers_buffer,
+            _cube_map_data_buffer: cube_map_data_buffer,
             _free_triangle_buffer: free_triangle_buffer,
         }
     }

@@ -220,6 +220,17 @@ pub struct GPUCubeMapFaceHeader {
     uv_scale_y: f32,
 }
 
+impl GPUCubeMapFaceHeader {
+    pub fn get_empty() -> Self {
+        Self {
+            width: 0,
+            height: 0,
+            uv_scale_x: 0.0,
+            uv_scale_y: 0.0,
+        }
+    }
+}
+
 pub struct GPUCubeMapData {
     pub headers: [GPUCubeMapFaceHeader; 6],
     pub data: [Vec<f32>; 6],
@@ -252,15 +263,17 @@ impl GPUCubeMapData {
             data,
         }
     }
-    pub fn get_raw_buffer(&self) -> Vec<f32> {
-        let mut buffer: Vec<f32> = Vec::new();
+    pub fn get_raw_buffers(&self) -> (Vec<GPUCubeMapFaceHeader>, Vec<f32>) {
+        let mut header_buffer: Vec<GPUCubeMapFaceHeader> = Vec::new();
+        let mut data_buffer: Vec<f32> = Vec::new();
         for i in 0..6 {
             let header = self.headers[i];
             let face = &self.data[i];
-            buffer.extend_from_slice(bytemuck::cast_slice(&[header]));
-            buffer.extend(face);
+            assert!(header.width * header.height * 3 == face.len() as u32);
+            header_buffer.push(header);
+            data_buffer.extend(face);
         }
-        return buffer;
+        return (header_buffer, data_buffer);
     }
 }
 
