@@ -33,16 +33,29 @@ var<uniform> render_info: RenderInfo;
 var<storage, read_write> render_target: array<f32>;
 
 @group(2) @binding(0)
-var<storage, read> spheres: array<f32>;
+var<storage, read> mesh_chunk_0: array<f32>;
 
 @group(2) @binding(1)
-var<storage, read> cube_maps: array<f32>;
+var<storage, read> mesh_chunk_1: array<f32>;
 
 @group(2) @binding(2)
-var<storage, read> free_triangles: array<f32>;
+var<storage, read> mesh_chunk_2: array<f32>;
 
 @group(2) @binding(3)
+var<storage, read> mesh_chunk_3: array<f32>;
+
+@group(2) @binding(4)
 var<storage, read> mesh_triangles: array<f32>;
+
+@group(3) @binding(0)
+var<storage, read> spheres: array<f32>;
+
+@group(3) @binding(1)
+var<storage, read> cube_maps: array<f32>;
+
+@group(3) @binding(2)
+var<storage, read> free_triangles: array<f32>;
+
 
 
 @compute @workgroup_size(8, 8, 1)
