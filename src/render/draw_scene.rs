@@ -16,7 +16,7 @@ use rayon::prelude::*;
 
 pub fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &GPUScene, update_hook: F, render_info: &RenderInfo) {
     println!("Rendering to target with GPU");
-    let iter_progress = ProgressBar::new(1);
+    let iter_progress = ProgressBar::new(render_info.samps_per_pix as u64);
     iter_progress.set_style(
         ProgressStyle::default_bar()
         .template("[{elapsed_precise}] {bar:80.cyan/blue} {pos}/{len} {msg}").unwrap()
@@ -34,7 +34,7 @@ pub fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene:
             .zip(&results)
             .for_each(|(target, result)| *target = (result.clamp(0.0, 1.0) * 255.0 + 0.5).trunc() as u8);
     
-    iter_progress.inc(1);
+    iter_progress.inc(render_info.samps_per_pix as u64);
     iter_progress.finish();
     update_hook();        
 }

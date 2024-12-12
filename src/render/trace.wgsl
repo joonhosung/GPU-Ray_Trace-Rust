@@ -338,6 +338,9 @@ fn get_sphere_intersect(ray_dir: vec3<f32>, ray_orig: vec3<f32>, i: u32) -> f32 
     return f32(-1.0); 
 }
 
+// 
+// Utility functions
+//
 fn contains_valid_spheres() -> bool {
     if arrayLength(&spheres) == 1u && spheres[0].is_valid == 0u {
         return false;
@@ -357,6 +360,23 @@ fn contains_valid_mesh_triangles() -> bool {
         return false;
     }
     return true;
+}
+
+fn num_cube_maps() -> u32 {
+    return u32(cube_maps[0]);
+}
+
+fn num_meshes_in_chunk(chunk: u32) -> i32 {
+    if chunk == 0 {
+        return i32(mesh_chunk_0[0]);
+    } else if chunk == 1 {
+        return i32(mesh_chunk_1[0]);
+    } else if chunk == 2 {
+        return i32(mesh_chunk_2[0]);
+    } else if chunk == 3 {
+        return i32(mesh_chunk_3[0]);
+    }
+    return -1;
 }
 
 // Generate random float between 0 and 1
