@@ -9,7 +9,7 @@ render_info:
     russ_roull_info:
       assured_depth: 5
       max_thres: 0.5
-  use_gpu: false
+  use_gpu: true
   animation: false
   framerate: 0
   

@@ -52,8 +52,42 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let info_width = render_info.width;
 
     let pixel_index = get_pixel_index(global_id.x, global_id.y, info_width);
-    render_target[pixel_index] += 1.0;
-    render_target[pixel_index + 1] += 1.0;
-    render_target[pixel_index + 2] += 1.0;
-    render_target[pixel_index + 3] += 1.0;
+    render_target[pixel_index] += 1.0;     // R
+    render_target[pixel_index + 1] += 1.0; // G
+    render_target[pixel_index + 2] += 1.0; // B
+    render_target[pixel_index + 3] += 1.0; // A
+
+    var seed = initRng();
+    // Randomize pixels for run
+    for (var i: u32 = 0; i < arrayLength(&render_target); i++) {
+        render_target[i] = get_random_f32(&seed);
+    }
+}
+
+fn get_random_f32(seed: ptr<function, u32>) -> f32 {
+    // let seed = 88888888u;
+    let newState = *seed * 747796405u + 2891336453u;
+    *seed = newState;
+    let word = ((newState >> ((newState >> 28u) + 4u)) ^ newState) * 277803737u;
+    let x = (word >> 22u) ^ word;
+    return f32(x) / f32(0xffffffffu);
+}
+
+
+// fn initRng(pixel: vec2<u32>, resolution: vec2<u32>, frame: u32) -> u32 {
+fn initRng() -> u32 {
+    // Adapted from https://github.com/boksajak/referencePT
+    // let seed = dot(pixel, vec2<u32>(1u, resolution.x)) ^ jenkinsHash(frame);
+    let seed = 88888888u ^ jenkinsHash(12345678u);
+    return jenkinsHash(seed);
+}
+
+fn jenkinsHash(input: u32) -> u32 {
+    var x = input;
+    x += x << 10u;
+    x ^= x >> 6u;
+    x += x << 3u;
+    x ^= x >> 11u;
+    x += x << 15u;
+    return x;
 }

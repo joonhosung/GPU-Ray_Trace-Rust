@@ -12,6 +12,7 @@ use crate::render::gpu_structs::{
     GPURenderInfo
 };
 use indicatif::ProgressBar;
+use rayon::prelude::*;
 
 fn print_gpu_results(results: &Vec<f32>) {
     println!("Got result from compute pipeline with length {}", results.len());   
@@ -21,7 +22,7 @@ fn print_gpu_results(results: &Vec<f32>) {
     println!("All results are one: {}", is_one);
 }
 
-pub fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &GPUScene, _update_hook: F, render_info: &RenderInfo) {
+pub fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &GPUScene, update_hook: F, render_info: &RenderInfo) {
     let mut gpu_state = GPUState::new();
     let gpu_camera = GPUCamera::from_cam(&scene.cam);
     let gpu_render_info = GPURenderInfo::from_render_info(render_info);
@@ -30,11 +31,19 @@ pub fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene:
     gpu_state.dispatch_compute_pipeline();
     gpu_state.submit_compute_pipeline();
     let results: Vec<f32> = gpu_state.block_and_get_single_result();
+
+    render_target.buff_mux.lock().iter_mut()
+            .zip(&results)
+            .for_each(|(target, result)| *target = (result.clamp(0.0, 1.0) * 255.0 + 0.5).trunc() as u8);
+    
+    // println!("Results: \n{results:?}");
+    update_hook();        
+
     print_gpu_results(&results);
 }
 
 pub fn render_to_target_cpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Scene, update_hook: F, render_info: &RenderInfo, iter_progress: &ProgressBar) {
-    use rayon::prelude::*;
+    
 
     let ray_compute = RayCompute::new((&render_target.canv_width, &render_target.canv_height), &scene.cam);
 
