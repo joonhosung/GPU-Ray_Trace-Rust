@@ -21,6 +21,15 @@ impl UVRgb32FImage {
         let rgb: [f32; 3] = rgb.try_into().unwrap();
         rgb.into()
     }
+    
+    /* 
+    converts an rgb image like:
+        [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]
+        [(0.0, 0.0, 1.0), (1.0, 1.0, 1.0)]
+
+    to a flat vec like:
+        [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0]
+    */
     pub fn as_raw(&self) -> Vec<f32> {
         self.0.pixels().flat_map(|p| p.channels().to_vec()).collect()
     }

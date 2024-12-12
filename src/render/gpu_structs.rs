@@ -304,24 +304,24 @@ impl GPUPrimitiveData {
         return buffer_size;
     }
 
-    pub fn get_raw_buffer(&self) -> Vec<u8> {
-        let mut buffer: Vec<u8> = Vec::with_capacity(self.get_buffer_size());
+    pub fn get_raw_buffer(&self) -> Vec<f32> {
+        let mut buffer: Vec<f32> = Vec::new();
         buffer.extend_from_slice(bytemuck::cast_slice(&self.positions));
         buffer.extend_from_slice(bytemuck::cast_slice(&self.norms));
         buffer.extend_from_slice(bytemuck::cast_slice(&self.triangles));
         buffer.extend_from_slice(bytemuck::cast_slice(&self.rgb_info_factor));
         self.rgb_info_coords.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(v)));
-        self.norm_info_scale.as_ref().map(|v| buffer.extend_from_slice(bytemuck::bytes_of(v)));
+        self.norm_info_scale.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(&[*v])));
         self.norm_info_coords.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(v)));
         self.tangents.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(v)));
-        buffer.extend_from_slice(bytemuck::bytes_of(&self.metal_rough_metal));
-        buffer.extend_from_slice(bytemuck::bytes_of(&self.metal_rough_rough));
+        buffer.extend_from_slice(bytemuck::cast_slice(&[self.metal_rough_metal]));
+        buffer.extend_from_slice(bytemuck::cast_slice(&[self.metal_rough_rough]));
         self.metal_rough_coords.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(v)));
-        self.texture_header.as_ref().map(|v| buffer.extend_from_slice(bytemuck::bytes_of(v)));
+        self.texture_header.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(&[*v])));
         self.texture_data.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(v)));
-        self.normal_map_header.as_ref().map(|v| buffer.extend_from_slice(bytemuck::bytes_of(v)));
+        self.normal_map_header.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(&[*v])));
         self.normal_map_data.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(v)));
-        self.metal_rough_map_header.as_ref().map(|v| buffer.extend_from_slice(bytemuck::bytes_of(v)));
+        self.metal_rough_map_header.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(&[*v])));
         self.metal_rough_map_data.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(v)));
         buffer.extend_from_slice(bytemuck::cast_slice(&self.trans_mat));
         return buffer;
@@ -393,11 +393,11 @@ impl GPUMeshData {
         return buffer_size;
     }
 
-    pub fn get_raw_buffer(&self) -> Vec<u8> {
-        let mut buffer = Vec::with_capacity(self.get_buffer_size());
+    pub fn get_raw_buffer(&self) -> Vec<f32> {
+        let mut buffer = Vec::new();
         for i in 0..self.primitive_data.len() {
-            buffer.extend_from_slice(bytemuck::bytes_of(&self.primitive_headers[i]));
-            buffer.extend_from_slice(self.primitive_data[i].get_raw_buffer().as_slice());
+            buffer.extend_from_slice(bytemuck::cast_slice(&[self.primitive_headers[i]]));
+            buffer.extend(self.primitive_data[i].get_raw_buffer());
         }
         return buffer;
     }
