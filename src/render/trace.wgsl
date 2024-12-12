@@ -152,9 +152,12 @@ var<storage, read> mesh_triangles: array<MeshTriangle>;
 var<storage, read> spheres: array<Sphere>;
 
 @group(3) @binding(1)
-var<storage, read> cube_maps: array<f32>;
+var<storage, read> cube_map_offsets: array<i32>;
 
 @group(3) @binding(2)
+var<storage, read> cube_maps: array<f32>;
+
+@group(3) @binding(3)
 var<storage, read> free_triangles: array<FreeTriangle>;
 
 
@@ -265,13 +268,6 @@ fn pix_cam_raw_ray(compute: RayCompute, pixel: vec2<u32>, camera: Camera, rng: p
     return Ray(direction, camera.origin.xyz);
 }
 
-fn get_ray_intersect_test(ray: Ray) -> Intersection {
-    if (arrayLength(&spheres) == 8u) {
-        return Intersection(vec4<f32>(1.0, 0.0, 0.0, 1.0), SPHERE, 0u, false, 1.0);
-    }
-    return Intersection(vec4<f32>(0.5f, 0.5f, 0.5f, 1f), CUBEMAP, 0u, false, MAXF);
-}
-
 fn get_ray_intersect(ray: Ray) -> Intersection {
     let ray_dir = ray.direction;
     let ray_orig = ray.origin;
@@ -363,7 +359,10 @@ fn contains_valid_mesh_triangles() -> bool {
 }
 
 fn num_cube_maps() -> u32 {
-    return u32(cube_maps[0]);
+    if cube_map_offsets[0] == -1 {
+        return 0u;
+    }
+    return u32(arrayLength(&cube_map_offsets));
 }
 
 fn num_meshes_in_chunk(chunk: u32) -> i32 {
@@ -377,6 +376,23 @@ fn num_meshes_in_chunk(chunk: u32) -> i32 {
         return i32(mesh_chunk_3[0]);
     }
     return -1;
+}
+
+
+fn get_distant_cube_map_face_offset(cube_map_index: u32, face_index: u32) -> u32 {
+    var offset = u32(cube_map_offsets[cube_map_index]);
+    var curr_face_index = 0u;
+    while curr_face_index < face_index {
+        let cube_map_face_header = CubeMapFaceHeader(
+            u32(cube_maps[offset]),
+            u32(cube_maps[offset + 1]),
+            f32(cube_maps[offset + 2]),
+            f32(cube_maps[offset + 3]),
+        );
+        offset += 4u + (cube_map_face_header.width * cube_map_face_header.height);
+        curr_face_index += 1u;
+    }
+    return offset;
 }
 
 // Generate random float between 0 and 1
