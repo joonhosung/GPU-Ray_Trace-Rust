@@ -3,6 +3,14 @@ const SPHERE = 1u;
 const CUBEMAP = 2u;
 const NONE = 3u;
 const MAXF = 0x1.fffffep+127f;
+const MIN_INTERSECT = 0.0001f;
+const PI   = 3.1415926f;
+
+// For UniformDiffuseSpec
+const SPEC = 0u;
+const DIFF = 1u;
+const DIFFSPEC = 2u;
+const DIELECTRIC = 3u;
 
 struct Camera {
     direction: vec4<f32>,
@@ -31,6 +39,12 @@ struct UniformDiffuseSpec {
     diffp: f32,      // For DiffSpec
     n_out: f32,      // For Dielectric
     n_in: f32,       // For Dielectric
+}
+
+struct HitInfo {
+    emissive: vec3<f32>,
+    pos: vec3<f32>,
+    norm: vec3<f32>,
 }
 
 struct Sphere {
@@ -97,6 +111,11 @@ struct MeshTriangle {
 struct Ray {
     direction: vec3<f32>,
     origin: vec3<f32>,
+}
+
+struct RayRefl {
+    ray: Ray,
+    intensity: f32,
 }
 
 struct RayCompute {
@@ -250,7 +269,7 @@ fn pix_cam_raw_ray(compute: RayCompute, pixel: vec2<u32>, camera: Camera, rng: p
         let v = get_random_f32(rng);
 
         let r = sqrt(u);
-        let theta = 2.0 * 3.1415926 * v;
+        let theta = 2.0 * PI * v;
 
         let x = (r - 0.5) * 2.0 * camera.lens_radius * cos(theta);
         let y = (r - 0.5) * 2.0 * camera.lens_radius * sin(theta);
@@ -273,8 +292,6 @@ fn get_ray_intersect_test(ray: Ray) -> Intersection {
 }
 
 fn get_ray_intersect(ray: Ray) -> Intersection {
-    let ray_dir = ray.direction;
-    let ray_orig = ray.origin;
     // Initialize intersect struct
     var intersect = Intersection(vec4<f32>(0f, 0f, 0f, 0f), NONE, 0u, false, 0f);
     var closest_intersect = MAXF;
@@ -283,7 +300,7 @@ fn get_ray_intersect(ray: Ray) -> Intersection {
     // Iterate through every sphere 
     if (contains_valid_spheres()) {
         for (var i = 0u; i < arrayLength(&spheres); i++) { 
-            let got_dist = get_sphere_intersect(ray_dir, ray_orig, i);
+            let got_dist = get_sphere_intersect(ray, i);
             if got_dist != -1f {
                 if got_dist < closest_intersect {
                     closest_intersect = got_dist;
@@ -304,15 +321,18 @@ fn get_ray_intersect(ray: Ray) -> Intersection {
     if intersect.element_type == NONE {
         // Just grey for now. Add intersection later
         intersect = Intersection(vec4<f32>(0.5f, 0.5f, 0.5f, 1f), CUBEMAP, 0u, false, MAXF);
+    } else {
+        let hit_info = get_hit_info(ray, intersect);
+        // let new_ray = 
     }
 
     return intersect;
 }
 // Returns hit index and ray length
 
-fn get_sphere_intersect(ray_dir: vec3<f32>, ray_orig: vec3<f32>, i: u32) -> f32 {
-    let oc = ray_orig - spheres[i].center.xyz;
-    let dir = dot(ray_dir, oc);
+fn get_sphere_intersect(ray: Ray, i: u32) -> f32 {
+    let oc = ray.origin - spheres[i].center.xyz;
+    let dir = dot(ray.direction, oc);
     let consts = dot(oc, oc) - (spheres[i].radius * spheres[i].radius);
 
     let discr = (dir * dir) - consts;
@@ -324,9 +344,9 @@ fn get_sphere_intersect(ray_dir: vec3<f32>, ray_orig: vec3<f32>, i: u32) -> f32 
         let intersect_dist_a = offset - thing;
         let intersect_dist_b = offset + thing;
 
-        if (intersect_dist_a > 0.001f) && (intersect_dist_a < intersect_dist_b) {
+        if (intersect_dist_a > MIN_INTERSECT) && (intersect_dist_a < intersect_dist_b) {
             return intersect_dist_a;
-        } else if (intersect_dist_b > 0.001f) && (intersect_dist_a > intersect_dist_b) {
+        } else if (intersect_dist_b > MIN_INTERSECT) && (intersect_dist_a > intersect_dist_b) {
             return intersect_dist_b;
         }
         
@@ -337,6 +357,91 @@ fn get_sphere_intersect(ray_dir: vec3<f32>, ray_orig: vec3<f32>, i: u32) -> f32 
 
     return f32(-1.0); 
 }
+
+
+fn get_hit_info(ray: Ray, intersect: Intersection) -> HitInfo {
+    switch intersect.element_type {
+        case MESH: {return HitInfo(vec3(0f), vec3(0f), vec3(0f));}
+
+        case SPHERE: {
+            let perfect_pos = ray.origin + ray.direction * intersect.ray_distance;
+            let norm = normalize(perfect_pos - spheres[intersect.element_idx].center.xyz);
+
+            let pos = perfect_pos + norm * MIN_INTERSECT;
+
+            return HitInfo(spheres[intersect.element_idx].material.emissive, pos, norm);
+        }
+
+        default: {return HitInfo(vec3(0f), vec3(0f), vec3(0f));}
+    }
+}
+
+// Specular "mirror" reflection
+fn get_spec(ray: Ray, norm: vec3<f32>, hit_point: vec3<f32>) -> RayRefl {
+    let new_ray = Ray(normalize(ray.direction - norm * 2f * dot(ray.direction, norm)), vec3<f32>(0f));
+
+    return RayRefl(new_ray, 1f);
+}
+
+// Diffraction "rough" reflection
+fn get_diff(ray: Ray, norm: vec3<f32>, hit_point: vec3<f32>, rng: ptr<function, u32>) -> RayRefl {
+    let xd = normalize(ray.direction - norm * dot(ray.direction, norm));
+    let yd = normalize(cross(norm, xd));
+
+    let u = get_random_f32(rng);
+    let v = get_random_f32(rng);
+
+    let r = sqrt(u);
+    let theta = 2f * PI * v;
+    
+    let x = r * cos(theta);
+    let y = r * sin(theta);
+
+    let d = normalize(xd * x + yd * y + norm * sqrt(max(1f - u, 0f)));
+
+    return RayRefl(Ray(d, ray.origin), 1f);
+}
+
+// Refraction "prism effect"
+fn get_refract(ray: Ray, norm: vec3<f32>, hit_point: vec3<f32>, n_in: f32, n_out: f32, rng: ptr<function, u32>) -> RayRefl {
+    var c = dot(norm, ray.direction);
+    var n1: f32;
+    var n2: f32;
+    var norm_refr: vec3<f32>;
+
+    if c < 0f {
+        n1 = n_out;
+        n2 = n_in;
+        c = -c;
+        norm_refr = norm;
+    } else {
+        n1 = n_in;
+        n2 = n_out;
+        norm_refr = -norm;
+    }
+
+    let n_over = n1 / n2;
+    let c22 = 1f - n_over * n_over * (1f - c * c);
+    let spec = get_spec(ray, norm_refr, hit_point);
+
+    if c22 < 0f {
+        return spec;
+    } else {
+        let trns = n_over * ray.direction + norm_refr * (n_over * c - sqrt(c22));
+        let r0 = pow((n1 - n2)/(n1 + n2), 2f);
+
+        let re = r0 + (1f + r0) * pow(dot(trns, norm), 5f);
+
+        let u = get_random_f32(rng);
+
+        if u < re {
+            return spec;
+        } else {
+            return RayRefl(Ray(normalize(trns), hit_point), 1f - re);
+        }
+    }
+}
+
 
 // 
 // Utility functions
