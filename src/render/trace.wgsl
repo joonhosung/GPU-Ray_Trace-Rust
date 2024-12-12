@@ -57,7 +57,6 @@ var<storage, read> cube_maps: array<f32>;
 var<storage, read> free_triangles: array<f32>;
 
 
-
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Just to verify we can access the structs (these don't affect the output)
@@ -72,10 +71,39 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     var seed = initRng();
     // Randomize pixels for run
-    for (var i: u32 = 0; i < arrayLength(&render_target); i++) {
-        render_target[i] = get_random_f32(&seed);
-    }
+    // for (var i: u32 = 0; i < arrayLength(&render_target); i++) {
+    //     render_target[i] = get_random_f32(&seed);
+    // }
+    // render_target[pixel_index] = get_random_f32(&seed);
+    // render_target[pixel_index+1] = get_random_f32(&seed);
+    // render_target[pixel_index+2] = get_random_f32(&seed);
+    // render_target[pixel_index+3] = get_random_f32(&seed);
+
+// Shader algorithm for now:
+    // For loop for samps_per_pix
+    // for (i < samps_per_pix) 
+    //     (do rendering)
+    //    from this pixel:
+    //         generate random ray based on generate.rs (function 1) (Jackson)
+    //         with this random ray:
+    //              get the first object hit based on intersect (function 2) (Jun Ho) (kd tree can help reduce this by a LOT)
+    //        (Loop 1) if there is a hit, until the minimum assured bounces: (russian roullette filter)
+    //                  See if we continue the ray. If continue ray: (function 3)
+    //                       Return colour and generate new ray from the ray that just got hit (function 4)
+    //                       With the new ray reflected off the hit object, Loop 1 again.
+    //                         establish_dls_contrib doesn't get called at any scheme now. Don't implement??
+    //                  If don't continue:
+    //                       Just update the colour of the pixel
+    // Update pixel using incoming_rgb from the last loop 1.
+
+    // Struct 1: RAY
+    // Two vectors called d & o (direction & origin)
+
 }
+
+// fn get_intersect(dir_vec, orig_vec)
+// Returns hit index and ray length
+
 
 fn get_random_f32(seed: ptr<function, u32>) -> f32 {
     // let seed = 88888888u;
