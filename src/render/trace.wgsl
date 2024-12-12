@@ -218,8 +218,8 @@ fn create_ray_compute(canvas_dims: vec2<u32>, camera: Camera) -> RayCompute {
         x_cf,
         y_cf,
         normalize(cross(normalize(camera.direction.xyz), camera.up.xyz)),
-        camera.screen_dims.x / 2.0,
-        camera.screen_dims.y / 2.0,
+        f32(canvas_dims.x) / 2.0,
+        f32(canvas_dims.y) / 2.0,
     );
 }
 
