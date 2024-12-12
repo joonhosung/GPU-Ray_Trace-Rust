@@ -23,6 +23,7 @@ fn print_gpu_results(results: &Vec<f32>) {
 }
 
 pub fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &GPUScene, update_hook: F, render_info: &RenderInfo) {
+    println!("Rendering to target with GPU");
     let mut gpu_state = GPUState::new();
     let gpu_camera = GPUCamera::from_cam(&scene.cam);
     let gpu_render_info = GPURenderInfo::from_render_info(render_info);

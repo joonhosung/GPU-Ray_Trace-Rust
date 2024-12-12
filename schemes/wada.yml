@@ -11,6 +11,7 @@ render_info:
     russ_roull_info:
       assured_depth: 5
       max_thres: 0.5
+  use_gpu: true
   
 cam:
   d: [0, 0, -11.0]

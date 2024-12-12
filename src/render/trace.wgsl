@@ -1,3 +1,9 @@
+const MESH = 0u;
+const SPHERE = 1u;
+const CUBEMAP = 2u;
+const NONE = 3u;
+const MAXF = 0x1.fffffep+127f;
+
 struct Camera {
     direction: vec4<f32>,
     origin: vec4<f32>,
@@ -50,6 +56,27 @@ struct CubeMapFaceHeader {
     uv_scale_x: f32,
     uv_scale_y: f32,
 }
+struct Ray {
+    direction: vec3<f32>,
+    origin: vec3<f32>,
+}
+
+struct RayCompute {
+    x_coef: f32,
+    y_coef: f32,
+    right: vec3<f32>,
+    x_offset: f32,
+    y_offset: f32,
+}
+
+struct Intersection {
+    // Try to get colour information here too?
+    colour: vec4<f32>,
+    element_type: u32,
+    element_idx: u32,
+    has_bounce: bool,
+    ray_distance: f32,
+}
 
 // Is this right? 6 arrays of data 
 // struct CubeMapData {
@@ -57,10 +84,6 @@ struct CubeMapFaceHeader {
 //     data: array<array<f32>, 6>,
 // }
 
-
-fn get_pixel_index(x: u32, y: u32, width: u32) -> u32 {
-    return 4 * (y * width + x);
-}
 
 @group(0) @binding(0)
 var<uniform> camera: Camera;
@@ -99,25 +122,22 @@ var<storage, read> free_triangles: array<FreeTriangle>;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    // Just to verify we can access the structs (these don't affect the output)
-    let cam_dir = camera.direction;
-    let info_width = render_info.width;
-
-    let pixel_index = get_pixel_index(global_id.x, global_id.y, info_width);
-    render_target[pixel_index] += 1.0;     // R
-    render_target[pixel_index + 1] += 1.0; // G
-    render_target[pixel_index + 2] += 1.0; // B
-    render_target[pixel_index + 3] += 1.0; // A
-
+    let pixel_index = get_pixel_index(global_id.x, global_id.y, render_info.width);
     var seed = initRng();
-    // Randomize pixels for run
-    // for (var i: u32 = 0; i < arrayLength(&render_target); i++) {
-    //     render_target[i] = get_random_f32(&seed);
-    // }
-    // render_target[pixel_index] = get_random_f32(&seed);
-    // render_target[pixel_index+1] = get_random_f32(&seed);
-    // render_target[pixel_index+2] = get_random_f32(&seed);
-    // render_target[pixel_index+3] = get_random_f32(&seed);
+    let ray_compute = create_ray_compute(vec2<u32>(render_info.width, render_info.height), camera);
+    var sample_count = 0.0;
+    // FIXME: Sanity for Jackson in the morning to try with camera ray generation sanity (rasterization)
+    // PUT PIXEL GENRATION HERE
+    for (var i = 0u; i < render_info.samps_per_pix; i += 1u) {
+        let ray = pix_cam_to_rand_ray(ray_compute, vec2<u32>(global_id.x, global_id.y), camera, &seed);
+        let ray_intersect = get_ray_intersect_test(ray);
+        render_target[pixel_index] = (ray_intersect.colour.x + (render_target[pixel_index] * sample_count)) / (sample_count + 1.0);
+        render_target[pixel_index + 1] = (ray_intersect.colour.y + (render_target[pixel_index + 1] * sample_count)) / (sample_count + 1.0);
+        render_target[pixel_index + 2] = (ray_intersect.colour.z + (render_target[pixel_index + 2] * sample_count)) / (sample_count + 1.0);
+        render_target[pixel_index + 3] = (ray_intersect.colour.w + (render_target[pixel_index + 3] * sample_count)) / (sample_count + 1.0);
+        
+        sample_count += 1.0;
+    }
 
 // Shader algorithm for now:
 
@@ -142,40 +162,78 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // let == immutable
     // var == mutable!!
-
-    // FIXME: Sanity for Jackson in the morning to try with camera ray generation sanity (rasterization)
-
-    // PUT PIXEL GENRATION HERE
-    let ray_dir = vec3<f32>(0f,0f,0f); // placeholder for ray vector
-    let ray_orig = vec3<f32>(0f,0f,0f); 
-
-    let ray_intersect = get_ray_intersect(ray_dir, ray_orig);
-
-    render_target[pixel_index] = ray_intersect.colour.x;
-    render_target[pixel_index+1] = ray_intersect.colour.y;
-    render_target[pixel_index+2] = ray_intersect.colour.z;
-    render_target[pixel_index+3] = ray_intersect.colour.w;
 }
 
 // Pseudo-enum for element types
-const MESH = 0u;
-const SPHERE = 1u;
-const CUBEMAP = 2u;
-const NONE = 3u;
 
-struct Intersection {
-    // Try to get colour information here too?
-    colour: vec4<f32>,
-    element_type: u32,
-    element_idx: u32,
-    has_bounce: bool,
-    ray_distance: f32,
+
+fn get_pixel_index(x: u32, y: u32, width: u32) -> u32 {
+    return 4 * (y * width + x);
 }
 
-const MAXF = 0x1.fffffep+127f;
+fn create_ray_compute(canvas_dims: vec2<u32>, camera: Camera) -> RayCompute {
+    let canvas_dims_f32 = vec2<f32>(f32(canvas_dims.x), f32(canvas_dims.y));
+    let x_cf = camera.screen_dims.x / canvas_dims_f32.x;
+    let y_cf = camera.screen_dims.y / canvas_dims_f32.y;
 
-fn get_ray_intersect(ray_dir: vec3<f32>, ray_orig: vec3<f32>) -> Intersection {
+    return RayCompute(
+        x_cf,
+        y_cf,
+        normalize(cross(normalize(camera.direction.xyz), camera.up.xyz)),
+        camera.screen_dims.x / 2.0,
+        camera.screen_dims.y / 2.0,
+    );
+}
+
+fn pix_cam_to_rand_ray(compute: RayCompute, pixel: vec2<u32>, camera: Camera, rng: ptr<function, u32>) -> Ray {
+    var ray = pix_cam_raw_ray(compute, pixel, camera, rng);
+
+    // Random offset in [-0.5, 0.5]
+    let u = get_random_f32(rng) - 0.5;
+    let v = get_random_f32(rng) - 0.5;
+
+    ray.direction = ray.direction + 
+        compute.right * u * compute.x_coef + 
+        camera.up.xyz * v * compute.y_coef;
+    ray.direction = normalize(ray.direction);
     
+    return ray;
+}
+
+fn pix_cam_raw_ray(compute: RayCompute, pixel: vec2<u32>, camera: Camera, rng: ptr<function, u32>) -> Ray {
+    let s_x = compute.x_coef * (f32(pixel.x) - compute.x_offset);
+    let s_y = compute.y_coef * (f32(pixel.y) - compute.y_offset);
+
+    let direction = camera.direction.xyz + s_x * compute.right + s_y * camera.up.xyz;
+
+    if (camera.lens_radius != 0.0) {
+        // Random numbers in [0, 1]
+        let u = get_random_f32(rng);
+        let v = get_random_f32(rng);
+
+        let r = sqrt(u);
+        let theta = 2.0 * 3.1415926 * v;
+
+        let x = (r - 0.5) * 2.0 * camera.lens_radius * cos(theta);
+        let y = (r - 0.5) * 2.0 * camera.lens_radius * sin(theta);
+        let offset = compute.right * x + camera.up.xyz * y;
+
+        return Ray(
+            direction - offset,
+            offset + camera.origin.xyz,
+        );
+    }
+
+    return Ray(direction, camera.origin.xyz);
+}
+
+fn get_ray_intersect_test(ray: Ray) -> Intersection {
+    return Intersection(spheres[0].coloring, SPHERE, 0u, false, 1.0);
+}
+
+fn get_ray_intersect(ray: Ray) -> Intersection {
+    let ray_dir = ray.direction;
+    let ray_orig = ray.origin;
     // Initialize intersect struct
     var intersect = Intersection(vec4<f32>(0f, 0f, 0f, 0f), NONE, 0u, false, 0f);
     var closest_intersect = MAXF;
@@ -188,7 +246,7 @@ fn get_ray_intersect(ray_dir: vec3<f32>, ray_orig: vec3<f32>) -> Intersection {
             if got_dist < closest_intersect {
                 closest_intersect = got_dist;
                 
-                intersect = Intersection(spheres[i].coloring, NONE, i, false, got_dist);
+                intersect = Intersection(spheres[i].coloring, SPHERE, i, false, got_dist);
             }
         }
     }
@@ -237,6 +295,7 @@ fn get_sphere_intersect(ray_dir: vec3<f32>, ray_orig: vec3<f32>, i: u32) -> f32 
     return f32(-1.0); 
 }
 
+// Generate random float between 0 and 1
 fn get_random_f32(seed: ptr<function, u32>) -> f32 {
     // let seed = 88888888u;
     let newState = *seed * 747796405u + 2891336453u;
