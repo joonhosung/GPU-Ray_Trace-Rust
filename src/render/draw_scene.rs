@@ -11,19 +11,16 @@ use crate::render::gpu_structs::{
     GPUCamera,
     GPURenderInfo
 };
-use indicatif::ProgressBar;
+use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
-
-fn print_gpu_results(results: &Vec<f32>) {
-    println!("Got result from compute pipeline with length {}", results.len());   
-    let is_zero = results.iter().all(|&x| x == 0.0);
-    let is_one = results.iter().all(|&x| x == 1.0);
-    println!("All results are zero: {}", is_zero);
-    println!("All results are one: {}", is_one);
-}
 
 pub fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &GPUScene, update_hook: F, render_info: &RenderInfo) {
     println!("Rendering to target with GPU");
+    let iter_progress = ProgressBar::new(1);
+    iter_progress.set_style(
+        ProgressStyle::default_bar()
+        .template("[{elapsed_precise}] {bar:80.cyan/blue} {pos}/{len} {msg}").unwrap()
+    );
     let mut gpu_state = GPUState::new();
     let gpu_camera = GPUCamera::from_cam(&scene.cam);
     let gpu_render_info = GPURenderInfo::from_render_info(render_info);
@@ -37,20 +34,15 @@ pub fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene:
             .zip(&results)
             .for_each(|(target, result)| *target = (result.clamp(0.0, 1.0) * 255.0 + 0.5).trunc() as u8);
     
-    // println!("Results: \n{results:?}");
+    iter_progress.inc(1);
+    iter_progress.finish();
     update_hook();        
-
-    print_gpu_results(&results);
 }
 
 pub fn render_to_target_cpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Scene, update_hook: F, render_info: &RenderInfo, iter_progress: &ProgressBar) {
-    
-
+    println!("Rendering to target with CPU");
     let ray_compute = RayCompute::new((&render_target.canv_width, &render_target.canv_height), &scene.cam);
-
-    
     // let start = Instant::now();
-
     render_target.buff_mux.lock().fill(0);
     let mut sample_count: f32 = 0.0;
     let mut target: Vec<[f32; 3]> = [[0.0, 0.0, 0.0]].repeat((render_target.canv_width * render_target.canv_height).try_into().unwrap());
