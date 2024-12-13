@@ -1,3 +1,4 @@
+use std::panic::panic_any;
 use std::thread;
 use std::sync::Arc;
 use egui::mutex::Mutex;
@@ -42,7 +43,6 @@ impl Renderer {
     pub fn consume_and_do(self) {
         let start = Instant::now();
         let use_gpu = self.scheme.render_info.use_gpu.unwrap_or(false);
-
         thread::spawn(move || {
             let renderer_inner = self.clone();
             let iter_progress = ProgressBar::new(self.scheme.render_info.samps_per_pix as u64);
@@ -57,6 +57,8 @@ impl Renderer {
                 println!("Total time elapsed: {:.3?} | Average time per iter: {:.3?}", elapsed, elapsed/self.scheme.render_info.samps_per_pix as u32);
             }
             else {
+                let batch_size = self.scheme.render_info.gpu_render_batch.expect("gpu_render_batch needs to be set for GPU mode!");
+                if self.scheme.render_info.samps_per_pix % batch_size != 0 {panic!("Ensure samps_per_pix is divisble by gpu_render_batch!!")}
                 let gpu_scene = GPUScene { cam: renderer_inner.scheme.cam.into(), elements: renderer_inner.scheme.scene_members.extract_concrete_types() };
                 render_to_target_gpu(&self.target, &gpu_scene, || self.update_output(), &self.scheme.render_info);
             }

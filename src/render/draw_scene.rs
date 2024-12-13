@@ -16,6 +16,8 @@ use rayon::prelude::*;
 
 pub fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &GPUScene, update_hook: F, render_info: &RenderInfo) {
     println!("Rendering to target with GPU");
+    let batch_size = render_info.gpu_render_batch.unwrap();
+    let num_batches =  render_info.samps_per_pix / batch_size;
     let iter_progress = ProgressBar::new(render_info.samps_per_pix as u64);
     iter_progress.set_style(
         ProgressStyle::default_bar()
@@ -26,17 +28,27 @@ pub fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene:
     let gpu_render_info = GPURenderInfo::from_render_info(render_info);
 
     gpu_state.create_compute_pipeline(&gpu_camera, &gpu_render_info, &render_target, &scene.elements);
-    gpu_state.dispatch_compute_pipeline();
-    gpu_state.submit_compute_pipeline();
-    let results: Vec<f32> = gpu_state.block_and_get_single_result();
-
-    render_target.buff_mux.lock().iter_mut()
-            .zip(&results)
-            .for_each(|(target, result)| *target = (result.clamp(0.0, 1.0) * 255.0 + 0.5).trunc() as u8);
     
-    iter_progress.inc(render_info.samps_per_pix as u64);
+    let mut results: Vec<f32> = vec![0.0; (render_target.canv_width * render_target.canv_height * 4) as usize];
+    let mut sample_count: f32 = 0.0;
+    
+    for _ in 0..num_batches {
+        // println!("{:?}", &results[..=3]);
+        gpu_state.dispatch_compute_pipeline();
+        gpu_state.submit_compute_pipeline();
+        let iter_results: Vec<f32> = gpu_state.block_and_get_single_result();
+
+        zip(results.iter_mut(), iter_results).for_each(|(res, iter)| {*res = (iter + (*res * sample_count)) / (sample_count + 1.0)});
+
+        render_target.buff_mux.lock().iter_mut()
+                .zip(&results)
+                .for_each(|(target, result)| *target = (result.clamp(0.0, 1.0) * 255.0 + 0.5).trunc() as u8);
+        
+        iter_progress.inc(batch_size as u64);
+        sample_count += 1.0;
+        update_hook();        
+    }
     iter_progress.finish();
-    update_hook();        
 }
 
 pub fn render_to_target_cpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Scene, update_hook: F, render_info: &RenderInfo, iter_progress: &ProgressBar) {

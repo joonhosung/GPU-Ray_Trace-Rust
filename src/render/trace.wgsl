@@ -31,6 +31,8 @@ struct RenderInfo {
     kd_tree_depth: u32,
     debug_single_ray: u32,
     dir_light_samp: u32,
+    // seed_time: u32,
+    // padding: vec3<u32>,
 }
 
 struct UniformDiffuseSpec {
@@ -178,6 +180,10 @@ struct TriangleHitResult {
 //     data: array<array<f32>, 6>,
 // }
 
+struct Iter {
+    ation: u32,
+    padding: u32,
+}
 
 @group(0) @binding(0)
 var<uniform> camera: Camera;
@@ -225,6 +231,9 @@ var<storage, read> cube_map_faces: array<f32>;
 @group(3) @binding(3)
 var<storage, read> free_triangles: array<FreeTriangle>;
 
+@group(3) @binding(4)
+var<storage, read_write> iter: Iter;
+
 
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
@@ -234,11 +243,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var sample_count = 0.0;
     var colour = vec3<f32>(0f);
 
-    var seed = initRng(global_id, render_info.samps_per_pix);
+    var seed = initRng(global_id, iter.ation);//render_info.seed_time);
 
     for (var i = 0u; i < render_info.samps_per_pix; i += 1u) {
-        seed = initRng(global_id, seed);
-        
+        // seed = initRng(global_id, seed);
+        iter.ation ++;
         var intensity = 1f;
         var ray = pix_cam_to_rand_ray(ray_compute, vec2<u32>(global_id.x, global_id.y), camera, &seed);
         var hit_info: HitInfo;

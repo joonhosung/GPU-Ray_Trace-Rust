@@ -17,7 +17,7 @@ use super::gpu_structs::{
     GPUSphere
 };
 use crate::elements::mesh::create_mesh_triangles_from_meshes;
-use super::RenderTarget;
+use super::{RenderInfo, RenderTarget};
 use pollster;
 use futures_channel;
 
@@ -70,6 +70,14 @@ impl ComputePipeline {
             label: Some("RenderTarget Buffer"),
             contents: bytemuck::cast_slice(&*buffer_data_f32),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST,
+        })
+    }
+
+    fn create_iter_count_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+        device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Interation count buffer for RNG"),
+            contents: bytemuck::bytes_of(&(0 as u64)),
+            usage: wgpu::BufferUsages::STORAGE,
         })
     }
 
@@ -229,6 +237,8 @@ impl ComputePipeline {
 
         let render_target_buffer = ComputePipeline::create_render_target_buffer(device, render_target);
 
+        let iter_counter_buffer = ComputePipeline::create_iter_count_buffer(device);
+
         let (mesh_chunk_header_buffer, mesh_header_buffer, primitive_header_buffer, mesh_data_buffers) = 
             ComputePipeline::create_mesh_buffers(device, &renderables.3);
         assert!(mesh_data_buffers.len() == GPU_NUM_MESH_BUFFERS, "Currently supports only {} mesh buffers", GPU_NUM_MESH_BUFFERS);
@@ -347,6 +357,16 @@ impl ComputePipeline {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -437,6 +457,10 @@ impl ComputePipeline {
                     binding: 3,
                     resource: free_triangle_buffer.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: iter_counter_buffer.as_entire_binding(),
+                },
             ],
         });
 
@@ -501,7 +525,15 @@ pub struct GPUState {
     compute_pipeline: Option<ComputePipeline>,
 }
 
+impl AsRef<GPUState> for GPUState {
+    fn as_ref(&self) -> &GPUState {
+        self
+    }
+}
+
 impl GPUState {
+    
+    
     pub fn new() -> GPUState {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
@@ -570,9 +602,9 @@ impl GPUState {
         self.queue.submit(self.command_buffer.take());
     }
 
-    pub fn block_and_get_single_result(&mut self) -> Vec<f32> {
+    pub fn block_and_get_single_result(&self) -> Vec<f32> {
         assert!(self.compute_pipeline.is_some(), "No compute pipeline to get result from");
-        let compute_pipeline = self.compute_pipeline.take().unwrap();
+        let compute_pipeline = self.compute_pipeline.as_ref().unwrap();
         let render_target_buffer = compute_pipeline.get_render_target_buffer();
         let staging_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Compute Pipeline Staging Buffer"),
@@ -611,7 +643,22 @@ impl GPUState {
         drop(data);
         // Unmap the staging data, don't need view of GPU memory anymore
         staging_buffer.unmap();
+        // self.compute_pipeline= Some(*compute_pipeline);
         result
     }
+
+    // pub fn update_seed_time(& self) {
+        
+    //     let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+    //         label: Some("Update time seed in render_info buffer"),
+    //     });
+
+    //     let render_info = RenderInfo();
+    //     let render_info_buffer = ComputePipeline::create_render_info_buffer(self.device, render_info);
+
+    //     encoder.copy_buffer_to_buffer(render_target_buffer, 0, &staging_buffer, 0, render_target_buffer.size());
+
+    //     self.compute_pipeline.as_ref().unwrap().render_info_buffer;
+    // }
 
 }

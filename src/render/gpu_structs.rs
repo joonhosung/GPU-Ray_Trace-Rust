@@ -60,6 +60,8 @@ pub struct GPURenderInfo {
     pub kd_tree_depth: u32, // kd_tree_depth
     pub debug_single_ray: u32, // rad_info.debug_single_ray
     pub dir_light_samp: u32, // rad_info.dir_light_samp
+    // pub seed_time: u32,      // To use as a seed for the random number generator
+    // padding: [u32; 3],
 }
 
 impl GPURenderInfo {
@@ -67,12 +69,14 @@ impl GPURenderInfo {
         Self {
             width: render_info.width as u32,
             height: render_info.height as u32,
-            samps_per_pix: render_info.samps_per_pix as u32,
+            samps_per_pix: render_info.gpu_render_batch.unwrap() as u32,//render_info.samps_per_pix as u32,
             assured_depth: render_info.rad_info.russ_roull_info.assured_depth as u32,
             max_threshold: render_info.rad_info.russ_roull_info.max_thres,
             kd_tree_depth: render_info.kd_tree_depth as u32,
             debug_single_ray: render_info.rad_info.debug_single_ray as u32,
             dir_light_samp: render_info.rad_info.dir_light_samp as u32,
+            // seed_time: (std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap().as_secs()) as u32,
+            // padding: [0; 3],
         }
     }
 }
