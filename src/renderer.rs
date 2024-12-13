@@ -1,4 +1,3 @@
-use std::panic::panic_any;
 use std::thread;
 use std::sync::Arc;
 use egui::mutex::Mutex;
@@ -60,7 +59,7 @@ impl Renderer {
                 let batch_size = self.scheme.render_info.gpu_render_batch.expect("gpu_render_batch needs to be set for GPU mode!");
                 if self.scheme.render_info.samps_per_pix % batch_size != 0 {panic!("Ensure samps_per_pix is divisble by gpu_render_batch!!")}
                 let gpu_scene = GPUScene { cam: renderer_inner.scheme.cam.into(), elements: renderer_inner.scheme.scene_members.extract_concrete_types() };
-                render_to_target_gpu(&self.target, &gpu_scene, || self.update_output(), &self.scheme.render_info);
+                render_to_target_gpu(&self.target, &gpu_scene, || self.update_output(), &self.scheme.render_info, &iter_progress);
             }
 
         });
@@ -68,6 +67,11 @@ impl Renderer {
 
     pub fn consume_and_do_anim(self, ui_mode: bool) {
         let progressbars = MultiProgress::new();
+        let use_gpu = self.scheme.render_info.use_gpu.unwrap_or(false);
+        if use_gpu {
+            let batch_size = self.scheme.render_info.gpu_render_batch.expect("gpu_render_batch needs to be set for GPU mode!");
+            if self.scheme.render_info.samps_per_pix % batch_size != 0 {panic!("Ensure samps_per_pix is divisble by gpu_render_batch!!")}
+        }
         
         let (region_width, region_height, render_info) = (self.scheme.render_info.width, self.scheme.render_info.height, self.scheme.render_info);
 
@@ -109,11 +113,16 @@ impl Renderer {
                     canv_width: region_width_inner, 
                     canv_height: region_height_inner,
                 };
-                let skene = Scene { cam: cam.into(), members: frame_members.into() };
                 // Send to normal renderer for each frame
                 // buffer_renderer.consume_and_do();
                 
-                render_to_target_cpu(&target, &skene, || tx.send(target.buff_mux.lock().clone()).expect("cannot send??"), &render_info, &iter_progress_inner);
+                if use_gpu{
+                    let gpu_scene = GPUScene { cam: cam.into(), elements: frame_members.extract_concrete_types() };
+                    render_to_target_gpu(&target, &gpu_scene, || tx.send(target.buff_mux.lock().clone()).expect("cannot send??"), &self.scheme.render_info, &iter_progress_inner);
+                } else {
+                    let skene = Scene { cam: cam.into(), members: frame_members.into() };
+                    render_to_target_cpu(&target, &skene, || tx.send(target.buff_mux.lock().clone()).expect("cannot send??"), &render_info, &iter_progress_inner);
+                }
                 // println!("WITHIN THREAD: Finished outputting frame #{frame_num}");
                 // Render receiver
             });

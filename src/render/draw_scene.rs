@@ -14,15 +14,15 @@ use crate::render::gpu_structs::{
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 
-pub fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &GPUScene, update_hook: F, render_info: &RenderInfo) {
-    println!("Rendering to target with GPU");
+pub fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &GPUScene, update_hook: F, render_info: &RenderInfo, iter_progress: &ProgressBar) {
+    // println!("Rendering to target with GPU");
     let batch_size = render_info.gpu_render_batch.unwrap();
     let num_batches =  render_info.samps_per_pix / batch_size;
-    let iter_progress = ProgressBar::new(render_info.samps_per_pix as u64);
-    iter_progress.set_style(
-        ProgressStyle::default_bar()
-        .template("[{elapsed_precise}] {bar:80.cyan/blue} {pos}/{len} {msg}").unwrap()
-    );
+    // let iter_progress = ProgressBar::new(render_info.samps_per_pix as u64);
+    // iter_progress.set_style(
+    //     ProgressStyle::default_bar()
+    //     .template("[{elapsed_precise}] {bar:80.cyan/blue} {pos}/{len} {msg}").unwrap()
+    // );
     let mut gpu_state = GPUState::new();
     let gpu_camera = GPUCamera::from_cam(&scene.cam);
     let gpu_render_info = GPURenderInfo::from_render_info(render_info);
@@ -44,15 +44,16 @@ pub fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene:
                 .zip(&results)
                 .for_each(|(target, result)| *target = (result.clamp(0.0, 1.0) * 255.0 + 0.5).trunc() as u8);
         
-        iter_progress.inc(batch_size as u64);
         sample_count += 1.0;
         update_hook();        
+        iter_progress.inc(batch_size as u64);
+        iter_progress.set_message(format!("GPU Frame progress..."));
     }
     iter_progress.finish();
 }
 
 pub fn render_to_target_cpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &Scene, update_hook: F, render_info: &RenderInfo, iter_progress: &ProgressBar) {
-    println!("Rendering to target with CPU");
+    // println!("Rendering to target with CPU");
     let ray_compute = RayCompute::new((&render_target.canv_width, &render_target.canv_height), &scene.cam);
     // let start = Instant::now();
     render_target.buff_mux.lock().fill(0);
@@ -101,7 +102,7 @@ pub fn render_to_target_cpu<F : Fn() -> ()>(render_target: &RenderTarget, scene:
 
         update_hook();
         iter_progress.inc(1);
-        iter_progress.set_message(format!("Frame progress..."));// elapsed:{:?}", start.elapsed()));
+        iter_progress.set_message(format!("CPU Frame progress..."));// elapsed:{:?}", start.elapsed()));
         // println!("render iteration {}: {:?}", r_it, start.elapsed());
     }
     // let elapsed = start.elapsed();

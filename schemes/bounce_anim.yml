@@ -1,7 +1,8 @@
 render_info:
   width: 600
   height: 1200
-  samps_per_pix: 100
+  samps_per_pix: 10000
+  gpu_render_batch: 10000
   kd_tree_depth: 1
   rad_info:  
     debug_single_ray: false
@@ -9,7 +10,7 @@ render_info:
     russ_roull_info:
       assured_depth: 5
       max_thres: 0.5
-  use_gpu: false
+  use_gpu: true
   animation: true
   framerate: 60
   
