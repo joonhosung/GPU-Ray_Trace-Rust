@@ -293,6 +293,7 @@ pub struct GPURgbF32ImageHeader {
 #[repr(C)]
 #[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GPUPrimitiveHeader {
+    pub length: u32,
     pub position_count: u32,
     pub normal_count: u32,
     pub triangle_count: u32,
@@ -303,7 +304,26 @@ pub struct GPUPrimitiveHeader {
     pub has_texture: u32,
     pub has_normal_map: u32,
     pub has_metal_rough_map: u32,
-    pub _padding: [u32; 2],
+    pub _padding: u32,
+}
+
+impl GPUPrimitiveHeader {
+    pub fn get_empty() -> Self {
+        Self {
+            length: 0,
+            position_count: 0,
+            normal_count: 0,
+            triangle_count: 0,
+            rgb_info_coords_count: 0,
+            has_norm_info: 0,
+            norm_info_coords_count: 0,
+            tangents_count: 0,
+            has_texture: 0,
+            has_normal_map: 0,
+            has_metal_rough_map: 0,
+            _padding: 0,
+        }
+    }
 }
 
 pub struct GPUPrimitiveData {
@@ -331,8 +351,6 @@ pub struct GPUPrimitiveData {
 
     pub metal_rough_map_header: Option<GPURgbF32ImageHeader>,
     pub metal_rough_map_data: Option<Vec<f32>>,
-
-    pub trans_mat: [f32; 16],
 }
 
 impl GPUPrimitiveData {
@@ -378,15 +396,52 @@ impl GPUPrimitiveData {
         self.normal_map_data.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(v)));
         self.metal_rough_map_header.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(&[*v])));
         self.metal_rough_map_data.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(v)));
-        buffer.extend_from_slice(bytemuck::cast_slice(&self.trans_mat));
         return buffer;
     }
 }
 
 
+#[repr(C)]
+#[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct GPUMeshChunkHeader {
+    pub num_meshes: u32,
+    pub _padding: [u32; 3],
+}
+
+impl GPUMeshChunkHeader {
+    pub fn get_empty() -> Self {
+        Self {
+            num_meshes: 0,
+            _padding: [0; 3],
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct GPUMeshHeader {
+    pub length: u32,
+    pub num_primitives: u32,
+    pub _padding: [u32; 2],
+    pub trans_mat: [f32; 16],
+}
+
+impl GPUMeshHeader {
+    pub fn get_empty() -> Self {
+        Self {
+            length: 0,
+            num_primitives: 0,
+            _padding: [0; 2],
+            trans_mat: [0.0; 16],
+        }
+    }
+}
+
+
 pub struct GPUMeshData {
+    pub mesh_header: GPUMeshHeader,
     pub primitive_headers: Vec<GPUPrimitiveHeader>,
-    pub primitive_data: Vec<GPUPrimitiveData>,
+    pub primitive_data: Vec<Vec<f32>>,
 }
 
 impl GPUMeshData {
@@ -394,23 +449,10 @@ impl GPUMeshData {
         mesh.check_num_primitives();
         let num_primitives = mesh.poses.len();
         let mut primitive_headers: Vec<GPUPrimitiveHeader>  = Vec::new();
-        let mut primitive_data: Vec<GPUPrimitiveData> = Vec::new();
+        let mut primitive_data: Vec<Vec<f32>> = Vec::new();
+        let mut total_length: u32 = 0;
         for i in 0..num_primitives {
-            let header = GPUPrimitiveHeader {
-                position_count: mesh.poses[i].len() as u32,
-                normal_count: mesh.norms[i].len() as u32,
-                triangle_count: mesh.indices[i].len() as u32,
-                rgb_info_coords_count: mesh.rgb_info[i].coords.as_ref().map_or(0, |v| v.len() as u32),
-                has_norm_info: mesh.norm_info[i].is_some() as u32,
-                norm_info_coords_count: mesh.norm_info[i].as_ref().map_or(0,|v| v.coords.len() as u32),
-                tangents_count: mesh.tangents[i].as_ref().map_or(0,|v| v.len() as u32),
-                has_texture: mesh.textures[i].is_some() as u32,
-                has_normal_map: mesh.normal_maps[i].is_some() as u32,
-                has_metal_rough_map: mesh.metal_rough_maps[i].is_some() as u32,
-                _padding: [0; 2],
-            };
-            primitive_headers.push(header);
-            let data = GPUPrimitiveData {
+            let raw_data = GPUPrimitiveData {
                 positions: mesh.poses[i].iter().map(|v| [v.x, v.y, v.z]).collect(),
                 norms: mesh.norms[i].iter().map(|v| [v.x, v.y, v.z]).collect(),
                 triangles: mesh.indices[i].iter().map(|v| [v[0] as u32, v[1] as u32, v[2] as u32]).collect(),
@@ -428,33 +470,49 @@ impl GPUMeshData {
                 normal_map_data: mesh.normal_maps[i].as_ref().map(|v| v.as_raw()),
                 metal_rough_map_header: mesh.metal_rough_maps[i].as_ref().map(|v| GPURgbF32ImageHeader { width: v.get_width(), height: v.get_height(), _padding: [0; 2] }),
                 metal_rough_map_data: mesh.metal_rough_maps[i].as_ref().map(|v| v.as_raw()),
-                // column major
-                trans_mat: mesh.trans_mat.as_slice().try_into().unwrap(),
+            }.get_raw_buffer();
+            let prim_header = GPUPrimitiveHeader {
+                length: raw_data.len() as u32,
+                position_count: mesh.poses[i].len() as u32,
+                normal_count: mesh.norms[i].len() as u32,
+                triangle_count: mesh.indices[i].len() as u32,
+                rgb_info_coords_count: mesh.rgb_info[i].coords.as_ref().map_or(0, |v| v.len() as u32),
+                has_norm_info: mesh.norm_info[i].is_some() as u32,
+                norm_info_coords_count: mesh.norm_info[i].as_ref().map_or(0,|v| v.coords.len() as u32),
+                tangents_count: mesh.tangents[i].as_ref().map_or(0,|v| v.len() as u32),
+                has_texture: mesh.textures[i].is_some() as u32,
+                has_normal_map: mesh.normal_maps[i].is_some() as u32,
+                has_metal_rough_map: mesh.metal_rough_maps[i].is_some() as u32,
+                _padding: 0,
             };
-            primitive_data.push(data);
+            total_length += raw_data.len() as u32;
+            primitive_data.push(raw_data);
+            primitive_headers.push(prim_header);
         }
+        let mesh_header = GPUMeshHeader {
+            length: total_length,
+            num_primitives: num_primitives as u32,
+            _padding: [0; 2],
+            // column major, which is what wgpu expects
+            trans_mat: mesh.trans_mat.as_slice().try_into().unwrap(),
+        };
+
         GPUMeshData {
+            mesh_header,
             primitive_headers,
             primitive_data,
         }
     }
 
-    pub fn get_buffer_size(&self) -> usize {
-        let mut buffer_size = 0;
+    pub fn get_raw_buffers(&self) -> (GPUMeshHeader, Vec<GPUPrimitiveHeader>, Vec<f32>) {
+        let mut primitive_headers_buffer: Vec<GPUPrimitiveHeader> = Vec::new();
+        let mut mesh_data_buffer = Vec::new();
         for i in 0..self.primitive_data.len() {
-            buffer_size += std::mem::size_of::<GPUPrimitiveHeader>();
-            buffer_size += self.primitive_data[i].get_buffer_size();
+            assert!(self.primitive_headers[i].length == self.primitive_data[i].len() as u32);
+            primitive_headers_buffer.push(self.primitive_headers[i]);
+            mesh_data_buffer.extend(&self.primitive_data[i]);
         }
-        return buffer_size;
-    }
-
-    pub fn get_raw_buffer(&self) -> Vec<f32> {
-        let mut buffer = Vec::new();
-        for i in 0..self.primitive_data.len() {
-            buffer.extend_from_slice(bytemuck::cast_slice(&[self.primitive_headers[i]]));
-            buffer.extend(self.primitive_data[i].get_raw_buffer());
-        }
-        return buffer;
+        return (self.mesh_header, primitive_headers_buffer, mesh_data_buffer);
     }
 }
 
@@ -601,6 +659,7 @@ assert_gpu_aligned!(GPUFreeTriangle);
 assert_gpu_aligned!(GPUSphere);
 assert_gpu_aligned!(GPUCubeMapFaceHeader);
 assert_gpu_aligned!(GPURgbF32ImageHeader);
+assert_gpu_aligned!(GPUMeshHeader);
 assert_gpu_aligned!(GPUPrimitiveHeader);
 assert_gpu_aligned!(GPUVertexFromMesh);
 assert_gpu_aligned!(GPUNormFromMesh);

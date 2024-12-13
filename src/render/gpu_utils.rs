@@ -5,13 +5,16 @@ use crate::elements::mesh;
 use crate::render::gpu_structs::GPUCubeMapFaceHeader;
 use crate::types::{GPUElements, GPU_NUM_MESH_BUFFERS};
 use super::gpu_structs::{
-    GPUCamera,
-    GPURenderInfo,
-    GPUMeshData,
-    GPUSphere,
-    GPUFreeTriangle,
-    GPUCubeMapData,
-    GPUMeshTriangle
+    GPUCamera, 
+    GPUCubeMapData, 
+    GPUFreeTriangle, 
+    GPUMeshData, 
+    GPUMeshTriangle, 
+    GPUMeshChunkHeader,
+    GPUMeshHeader, 
+    GPUPrimitiveHeader, 
+    GPURenderInfo, 
+    GPUSphere
 };
 use crate::elements::mesh::create_mesh_triangles_from_meshes;
 use super::RenderTarget;
@@ -32,7 +35,10 @@ struct ComputePipeline {
     _camera_buffer: wgpu::Buffer,
     _render_info_buffer: wgpu::Buffer,
     render_target_buffer: wgpu::Buffer,
-    _mesh_buffers: Vec<wgpu::Buffer>,
+    _mesh_chunk_hedaer_buffer: wgpu::Buffer,
+    _mesh_header_buffer: wgpu::Buffer,
+    _primitive_header_buffer: wgpu::Buffer,
+    _mesh_data_buffers: Vec<wgpu::Buffer>,
     _mesh_triangle_buffer: wgpu::Buffer,
     _sphere_buffer: wgpu::Buffer,
     _cube_map_headers_buffer: wgpu::Buffer,
@@ -67,34 +73,71 @@ impl ComputePipeline {
         })
     }
 
-    fn create_mesh_buffers(device: &wgpu::Device, meshes: &Vec<mesh::Mesh>) -> Vec<wgpu::Buffer> {
-        let mut mesh_data_chunks: Vec<Vec<f32>> = vec![vec![0.0]; GPU_NUM_MESH_BUFFERS];
+    fn create_mesh_buffers(device: &wgpu::Device, meshes: &Vec<mesh::Mesh>) -> (wgpu::Buffer, wgpu::Buffer, wgpu::Buffer, Vec<wgpu::Buffer>) {
+        let mut all_mesh_headers: Vec<GPUMeshHeader> = vec![];
+        let mut mesh_data_chunks: Vec<Vec<f32>> = vec![vec![]; GPU_NUM_MESH_BUFFERS];
+        let mut all_primitive_headers: Vec<GPUPrimitiveHeader> = vec![];
         let mut curr_chunk = 0;
-        let mut curr_chunk_size = std::mem::size_of::<f32>();
+        let mut curr_chunk_size = 0;
         let chunk_limit =  1024 * 1024 * 1024;
+        let mut chunk_headers: Vec<GPUMeshChunkHeader> = vec![GPUMeshChunkHeader::get_empty(); 4];
+        let mut curr_chunk_meshes = 0;
         for mesh in meshes {
             let gpu_mesh = GPUMeshData::from_mesh(mesh);
-            let mesh_raw_data = gpu_mesh.get_raw_buffer();
-            let raw_data_size = mesh_raw_data.len() * std::mem::size_of::<f32>();
+            let (mesh_header, primitive_headers, mesh_data) = gpu_mesh.get_raw_buffers();
+            let raw_data_size = mesh_data.len() * std::mem::size_of::<f32>();
             assert!(raw_data_size <= chunk_limit, "Mesh data too large for buffer");
+            assert!(mesh_data.len() as u32 == mesh_header.length, "Mesh header size mismatch");
             if curr_chunk_size + raw_data_size > chunk_limit {
+                chunk_headers[curr_chunk].num_meshes = curr_chunk_meshes;
                 curr_chunk += 1;
-                curr_chunk_size = std::mem::size_of::<f32>();
+                curr_chunk_size = 0;
+                curr_chunk_meshes = 0;
             }
-            mesh_data_chunks[curr_chunk].extend(mesh_raw_data);
-            mesh_data_chunks[curr_chunk][0] += 1.0;
+            all_mesh_headers.push(mesh_header);
+            mesh_data_chunks[curr_chunk].extend(mesh_data);
+            all_primitive_headers.extend(primitive_headers);
             curr_chunk_size += raw_data_size;
+            curr_chunk_meshes += 1;
         }
-        let mut buffers: Vec<wgpu::Buffer> = vec![];
-        mesh_data_chunks.iter().enumerate().for_each(|(i, chunk)| {
-            let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        chunk_headers[curr_chunk].num_meshes = curr_chunk_meshes;
+        // Check if these buffers are empty
+        // If they are, create empty buffers as placeholders since wgpu doesn't accept empty buffers
+        assert!(all_mesh_headers.is_empty() == all_primitive_headers.is_empty(), "Mesh and primitive headers must be empty together");
+        if all_mesh_headers.is_empty() {
+            all_mesh_headers.push(GPUMeshHeader::get_empty());
+        }
+        if all_primitive_headers.is_empty() {
+            all_primitive_headers.push(GPUPrimitiveHeader::get_empty());
+        }
+        let mesh_chunk_header_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Mesh Chunk Header Buffer"),
+            contents: bytemuck::cast_slice(&chunk_headers),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+        let mesh_header_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Mesh Header Buffer"),
+            contents: bytemuck::cast_slice(&all_mesh_headers),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+        let primitive_header_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Primitive Header Buffer"),
+            contents: bytemuck::cast_slice(&all_primitive_headers),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+        let mut data_buffers: Vec<wgpu::Buffer> = vec![];
+        mesh_data_chunks.iter_mut().enumerate().for_each(|(i, chunk)| {
+            if chunk.is_empty() {
+                chunk.push(0.0);
+            }
+            let data_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some(format!("Mesh Buffer {}", i).as_str()),
                 contents: bytemuck::cast_slice(&chunk),
                 usage: wgpu::BufferUsages::STORAGE,
             });
-            buffers.push(buffer);
+            data_buffers.push(data_buffer);
         });
-        return buffers;
+        return (mesh_chunk_header_buffer, mesh_header_buffer, primitive_header_buffer, data_buffers);
     }
 
     fn create_renderables_buffer(device: &wgpu::Device, elements: &GPUElements) -> (wgpu::Buffer, wgpu::Buffer, wgpu::Buffer, wgpu::Buffer, wgpu::Buffer) {
@@ -186,8 +229,9 @@ impl ComputePipeline {
 
         let render_target_buffer = ComputePipeline::create_render_target_buffer(device, render_target);
 
-        let mesh_buffers = ComputePipeline::create_mesh_buffers(device, &renderables.3);
-        assert!(mesh_buffers.len() == GPU_NUM_MESH_BUFFERS, "Currently supports only {} mesh buffers", GPU_NUM_MESH_BUFFERS);
+        let (mesh_chunk_header_buffer, mesh_header_buffer, primitive_header_buffer, mesh_data_buffers) = 
+            ComputePipeline::create_mesh_buffers(device, &renderables.3);
+        assert!(mesh_data_buffers.len() == GPU_NUM_MESH_BUFFERS, "Currently supports only {} mesh buffers", GPU_NUM_MESH_BUFFERS);
 
         let (sphere_buffer, cube_map_headers_buffer, cube_map_data_buffer, free_triangle_buffer, mesh_triangle_buffer) = 
             ComputePipeline::create_renderables_buffer(device, renderables);
@@ -237,19 +281,23 @@ impl ComputePipeline {
             ],
         });
         
-        // for mesh and mesh triangle
-        let third_bind_group_layouts: Vec<wgpu::BindGroupLayoutEntry> = (0..GPU_NUM_MESH_BUFFERS + 1).map(|i| {
-            wgpu::BindGroupLayoutEntry {
-                binding: i as u32,
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }
-        }).collect();
+        // for mesh chunk header buffer, mesh header buffer, primitive buffer, mesh data buffers, mesh triangle buffer
+        let mut third_bind_group_layouts: Vec<wgpu::BindGroupLayoutEntry> = vec![];
+
+        for i in 0..(1 + 1 + 1 + GPU_NUM_MESH_BUFFERS + 1) {
+            third_bind_group_layouts.push(
+                wgpu::BindGroupLayoutEntry {
+                    binding: i as u32,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                });
+        }
+
         let third_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Compute Bind Group Layout 2"),
             entries: &third_bind_group_layouts,
@@ -329,17 +377,40 @@ impl ComputePipeline {
             ],
         });
         
-        let mut third_bind_group_entries: Vec<wgpu::BindGroupEntry> = (0..GPU_NUM_MESH_BUFFERS).map(|i| {
-            wgpu::BindGroupEntry {
-                binding: i as u32,
-                resource: mesh_buffers[i].as_entire_binding(),
-            }
-        }).collect();
+        let mut third_bind_group_entries: Vec<wgpu::BindGroupEntry> = vec![];
+
         third_bind_group_entries.push(
             wgpu::BindGroupEntry {
-            binding: GPU_NUM_MESH_BUFFERS as u32,
+            binding: third_bind_group_entries.len() as u32,
+            resource: mesh_chunk_header_buffer.as_entire_binding(),
+        });
+
+        third_bind_group_entries.push(
+            wgpu::BindGroupEntry {
+            binding: third_bind_group_entries.len() as u32,
+            resource: mesh_header_buffer.as_entire_binding(),
+        });
+        
+        third_bind_group_entries.push(
+            wgpu::BindGroupEntry {
+            binding: third_bind_group_entries.len() as u32,
+            resource: primitive_header_buffer.as_entire_binding(),
+        });
+
+        for i in 0..GPU_NUM_MESH_BUFFERS {
+            third_bind_group_entries.push(
+                wgpu::BindGroupEntry {
+                binding: third_bind_group_entries.len() as u32,
+                resource: mesh_data_buffers[i].as_entire_binding(),
+            });
+        }
+
+        third_bind_group_entries.push(
+            wgpu::BindGroupEntry {
+            binding: third_bind_group_entries.len() as u32,
             resource: mesh_triangle_buffer.as_entire_binding(),
         });
+
         let third_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Compute Bind Group 2"),
             layout: &third_bind_group_layout,
@@ -403,7 +474,10 @@ impl ComputePipeline {
             _camera_buffer: camera_buffer,
             _render_info_buffer: render_info_buffer,
             render_target_buffer,
-            _mesh_buffers: mesh_buffers,
+            _mesh_chunk_hedaer_buffer: mesh_chunk_header_buffer,
+            _mesh_header_buffer: mesh_header_buffer,
+            _primitive_header_buffer: primitive_header_buffer,
+            _mesh_data_buffers: mesh_data_buffers,
             _mesh_triangle_buffer: mesh_triangle_buffer,
             _sphere_buffer: sphere_buffer,
             _cube_map_headers_buffer: cube_map_headers_buffer,
