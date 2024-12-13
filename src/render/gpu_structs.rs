@@ -4,7 +4,7 @@ use crate::elements::distant_cube_map::DistantCubeMap;
 use crate::elements::sphere::{Sphere, Coloring};
 use crate::material::{DivertRayMethod, UniformDiffuseSpec};
 use crate::elements::triangle::FreeTriangle;
-use crate::elements::mesh::{Mesh, MeshTriangle, VertexFromMesh, NormFromMesh, RgbFromMesh, DivertsRayFromMesh};
+use crate::elements::mesh::{Mesh, MeshTriangle};
 use crate::scene::Cam;
 use super::RenderInfo;
 use static_assertions;
@@ -221,8 +221,8 @@ impl GPUSphere {
 pub struct GPUCubeMapFaceHeader {
     pub width: u32,
     pub height: u32,
-    uv_scale_x: f32,
-    uv_scale_y: f32,
+    pub uv_scale_x: f32,
+    pub uv_scale_y: f32,
 }
 
 impl GPUCubeMapFaceHeader {
@@ -283,51 +283,126 @@ impl GPUCubeMapData {
 }
 
 
-//
-// GPU Representation of mesh::Mesh
-// Gonna have a header/data_chunk per primitive
-//
 #[repr(C)]
-#[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct GPURgbF32ImageHeader {
-    pub width: u32,
-    pub height: u32,
-    pub _padding: [u32; 2],
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Copy, Clone, Default, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GPUPrimitiveHeader {
     pub length: u32,
+    // offset to the start of the primitive data in the mesh data sequence.
+    // to access position, do chunk[mesh_header.data_offset + prim_header.mesh_data_offset + prim_header.position_offset]
+    // to access normal, do chunk[mesh_header.data_offset + prim_header.mesh_data_offset + prim_header.normal_offset]
+    // etc.
+    // where mesh_header is the header of the mesh containing this primitive
+    pub mesh_data_offset: u32,
+    pub position_offset: u32,
     pub position_count: u32,
+
+    pub normal_offset: u32,
     pub normal_count: u32,
+
+    pub triangle_offset: u32,
     pub triangle_count: u32,
+
+    pub rgb_info_factor_offset: u32,
+    pub rgb_info_coords_offset: u32,
     pub rgb_info_coords_count: u32,
+
+    pub norm_info_scale_offset: u32,
+    pub norm_info_coords_offset: u32,
     pub has_norm_info: u32,
     pub norm_info_coords_count: u32,
+
+    pub tangents_offset: u32,
     pub tangents_count: u32,
-    pub has_texture: u32,
-    pub has_normal_map: u32,
-    pub has_metal_rough_map: u32,
-    pub _padding: u32,
+
+    pub metal_rough_metal_offset: u32,
+    pub metal_rough_rough_offset: u32,
+    pub metal_rough_coords_offset: u32,
+    pub metal_rough_coords_count: u32,
+
+    pub texture_data_offset: u32,
+    pub texture_data_width: u32,
+    pub texture_data_height: u32,
+
+    pub normal_map_data_offset: u32,
+    pub normal_map_data_width: u32,
+    pub normal_map_data_height: u32,
+
+    pub metal_rough_map_data_offset: u32,
+    pub metal_rough_map_data_width: u32,
+    pub metal_rough_map_data_height: u32,
+
+    pub _padding: [u32; 2],
 }
 
 impl GPUPrimitiveHeader {
     pub fn get_empty() -> Self {
         Self {
-            length: 0,
-            position_count: 0,
-            normal_count: 0,
-            triangle_count: 0,
-            rgb_info_coords_count: 0,
-            has_norm_info: 0,
-            norm_info_coords_count: 0,
-            tangents_count: 0,
-            has_texture: 0,
-            has_normal_map: 0,
-            has_metal_rough_map: 0,
-            _padding: 0,
+            ..Default::default()
         }
+    }
+
+    pub fn from_primitive(mesh: &Mesh, i: usize, mesh_data_offset: u32, my_length: u32) -> Self {
+        let position_offset = 0;
+        let normal_offset = position_offset + (mesh.poses[i].len() * 3) as u32;
+        let triangle_offset = normal_offset + (mesh.norms[i].len() * 3) as u32;
+        let rgb_info_factor_offset = triangle_offset + (mesh.indices[i].len() * 3) as u32;
+        let rgb_info_coords_offset = rgb_info_factor_offset + mesh.rgb_info[i].factor.len() as u32;
+        let norm_info_scale_offset = rgb_info_coords_offset + mesh.rgb_info[i].coords.as_ref().map_or(0, |v| v.len() as u32 * 2);
+        let norm_info_coords_offset = norm_info_scale_offset + mesh.norm_info[i].as_ref().map_or(0, |_| 1);
+        let tangents_offset = norm_info_coords_offset + mesh.norm_info[i].as_ref().map_or(0, |v| v.coords.len() as u32 * 2);
+        let metal_rough_metal_offset = tangents_offset + mesh.tangents[i].as_ref().map_or(0, |v| v.len() as u32 * 3);
+        let metal_rough_rough_offset = metal_rough_metal_offset + 1;
+        let metal_rough_coords_offset = metal_rough_rough_offset + 1;
+        let texture_data_offset = metal_rough_coords_offset + mesh.metal_rough[i].coords.as_ref().map_or(0, |v| v.len() as u32 * 2);
+        let normal_map_data_offset = texture_data_offset + mesh.textures[i].as_ref().map_or(0, |img| img.get_width() * img.get_height() * 3) as u32;
+        let metal_rough_map_data_offset = normal_map_data_offset + mesh.normal_maps[i].as_ref().map_or(0, |img| img.get_width() * img.get_height() * 3) as u32;
+
+        let prim_header = GPUPrimitiveHeader {
+            length: my_length,
+            mesh_data_offset,
+
+            position_offset,
+            position_count: mesh.poses[i].len() as u32,
+
+            normal_offset,
+            normal_count: mesh.norms[i].len() as u32,
+
+            triangle_offset,
+            triangle_count: mesh.indices[i].len() as u32,
+
+            rgb_info_factor_offset,
+            rgb_info_coords_offset,
+            rgb_info_coords_count: mesh.rgb_info[i].coords.as_ref().map_or(0, |v| v.len() as u32),
+
+            norm_info_scale_offset,
+            norm_info_coords_offset,
+            has_norm_info: mesh.norm_info[i].is_some() as u32,
+            norm_info_coords_count: mesh.norm_info[i].as_ref().map_or(0,|v| v.coords.len() as u32),
+
+            tangents_offset,
+            tangents_count: mesh.tangents[i].as_ref().map_or(0,|v| v.len() as u32),
+
+            metal_rough_metal_offset,
+            metal_rough_rough_offset,
+            metal_rough_coords_offset,
+            metal_rough_coords_count: mesh.metal_rough[i].coords.as_ref().map_or(0, |v| v.len() as u32),
+
+            texture_data_offset,
+            texture_data_width: mesh.textures[i].as_ref().map_or(0, |img| img.get_width() as u32),
+            texture_data_height: mesh.textures[i].as_ref().map_or(0, |img| img.get_height() as u32),
+
+            normal_map_data_offset,
+            normal_map_data_width: mesh.normal_maps[i].as_ref().map_or(0, |img| img.get_width() as u32),
+            normal_map_data_height: mesh.normal_maps[i].as_ref().map_or(0, |img| img.get_height() as u32),
+
+            metal_rough_map_data_offset,
+            metal_rough_map_data_width: mesh.metal_rough_maps[i].as_ref().map_or(0, |img| img.get_width() as u32),
+            metal_rough_map_data_height: mesh.metal_rough_maps[i].as_ref().map_or(0, |img| img.get_height() as u32),
+
+            _padding: [0; 2],
+        };
+
+        return prim_header;
     }
 }
 
@@ -348,13 +423,10 @@ pub struct GPUPrimitiveData {
     pub metal_rough_rough: f32,
     pub metal_rough_coords: Option<Vec<[f32; 2]>>,
 
-    pub texture_header: Option<GPURgbF32ImageHeader>,
     pub texture_data: Option<Vec<f32>>,
 
-    pub normal_map_header: Option<GPURgbF32ImageHeader>,
     pub normal_map_data: Option<Vec<f32>>,
 
-    pub metal_rough_map_header: Option<GPURgbF32ImageHeader>,
     pub metal_rough_map_data: Option<Vec<f32>>,
 }
 
@@ -372,11 +444,8 @@ impl GPUPrimitiveData {
         buffer_size += std::mem::size_of::<f32>();  // metal_rough_metal
         buffer_size += std::mem::size_of::<f32>();  // metal_rough_rough
         buffer_size += self.metal_rough_coords.as_ref().map_or(0, |v| v.len() * std::mem::size_of::<[f32; 2]>());
-        buffer_size += self.texture_header.as_ref().map_or(0, |_| std::mem::size_of::<GPURgbF32ImageHeader>());
         buffer_size += self.texture_data.as_ref().map_or(0, |v| v.len() * std::mem::size_of::<f32>());
-        buffer_size += self.normal_map_header.as_ref().map_or(0, |_| std::mem::size_of::<GPURgbF32ImageHeader>());
         buffer_size += self.normal_map_data.as_ref().map_or(0, |v| v.len() * std::mem::size_of::<f32>());
-        buffer_size += self.metal_rough_map_header.as_ref().map_or(0, |_| std::mem::size_of::<GPURgbF32ImageHeader>());
         buffer_size += self.metal_rough_map_data.as_ref().map_or(0, |v| v.len() * std::mem::size_of::<f32>());
         buffer_size += std::mem::size_of::<[f32; 16]>();  // trans_mat
         return buffer_size;
@@ -395,11 +464,8 @@ impl GPUPrimitiveData {
         buffer.extend_from_slice(bytemuck::cast_slice(&[self.metal_rough_metal]));
         buffer.extend_from_slice(bytemuck::cast_slice(&[self.metal_rough_rough]));
         self.metal_rough_coords.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(v)));
-        self.texture_header.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(&[*v])));
         self.texture_data.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(v)));
-        self.normal_map_header.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(&[*v])));
         self.normal_map_data.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(v)));
-        self.metal_rough_map_header.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(&[*v])));
         self.metal_rough_map_data.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(v)));
         return buffer;
     }
@@ -427,7 +493,11 @@ impl GPUMeshChunkHeader {
 pub struct GPUMeshHeader {
     pub length: u32,
     pub num_primitives: u32,
-    pub _padding: [u32; 2],
+    pub chunk_id: u32,
+    // offset to the start of the mesh data in the chunk buffer
+    pub data_offset: u32,
+    pub primitive_header_offset: u32,
+    pub _padding: [u32; 3],
     pub trans_mat: [f32; 16],
 }
 
@@ -436,7 +506,10 @@ impl GPUMeshHeader {
         Self {
             length: 0,
             num_primitives: 0,
-            _padding: [0; 2],
+            chunk_id: 0,
+            data_offset: 0,
+            primitive_header_offset: 0,
+            _padding: [0; 3],
             trans_mat: [0.0; 16],
         }
     }
@@ -457,7 +530,7 @@ impl GPUMeshData {
         let mut primitive_data: Vec<Vec<f32>> = Vec::new();
         let mut total_length: u32 = 0;
         for i in 0..num_primitives {
-            let raw_data = GPUPrimitiveData {
+            let primitive_data_f32 = GPUPrimitiveData {
                 positions: mesh.poses[i].iter().map(|v| [v.x, v.y, v.z]).collect(),
                 norms: mesh.norms[i].iter().map(|v| [v.x, v.y, v.z]).collect(),
                 triangles: mesh.indices[i].iter().map(|v| [v[0] as u32, v[1] as u32, v[2] as u32]).collect(),
@@ -469,35 +542,24 @@ impl GPUMeshData {
                 metal_rough_metal: mesh.metal_rough[i].metal,
                 metal_rough_rough: mesh.metal_rough[i].rough,
                 metal_rough_coords: mesh.metal_rough[i].coords.as_ref().map(|v| v.iter().map(|v| [v.x, v.y]).collect()),
-                texture_header: mesh.textures[i].as_ref().map(|v| GPURgbF32ImageHeader { width: v.get_width(), height: v.get_height(), _padding: [0; 2] }),
                 texture_data: mesh.textures[i].as_ref().map(|v| v.as_raw()),
-                normal_map_header: mesh.normal_maps[i].as_ref().map(|v| GPURgbF32ImageHeader { width: v.get_width(), height: v.get_height(), _padding: [0; 2] }),
                 normal_map_data: mesh.normal_maps[i].as_ref().map(|v| v.as_raw()),
-                metal_rough_map_header: mesh.metal_rough_maps[i].as_ref().map(|v| GPURgbF32ImageHeader { width: v.get_width(), height: v.get_height(), _padding: [0; 2] }),
                 metal_rough_map_data: mesh.metal_rough_maps[i].as_ref().map(|v| v.as_raw()),
             }.get_raw_buffer();
-            let prim_header = GPUPrimitiveHeader {
-                length: raw_data.len() as u32,
-                position_count: mesh.poses[i].len() as u32,
-                normal_count: mesh.norms[i].len() as u32,
-                triangle_count: mesh.indices[i].len() as u32,
-                rgb_info_coords_count: mesh.rgb_info[i].coords.as_ref().map_or(0, |v| v.len() as u32),
-                has_norm_info: mesh.norm_info[i].is_some() as u32,
-                norm_info_coords_count: mesh.norm_info[i].as_ref().map_or(0,|v| v.coords.len() as u32),
-                tangents_count: mesh.tangents[i].as_ref().map_or(0,|v| v.len() as u32),
-                has_texture: mesh.textures[i].is_some() as u32,
-                has_normal_map: mesh.normal_maps[i].is_some() as u32,
-                has_metal_rough_map: mesh.metal_rough_maps[i].is_some() as u32,
-                _padding: 0,
-            };
-            total_length += raw_data.len() as u32;
-            primitive_data.push(raw_data);
+
+            let prim_header = GPUPrimitiveHeader::from_primitive(mesh, i, total_length, primitive_data_f32.len() as u32);
+            total_length += primitive_data_f32.len() as u32;
+            primitive_data.push(primitive_data_f32);
             primitive_headers.push(prim_header);
         }
         let mesh_header = GPUMeshHeader {
             length: total_length,
             num_primitives: num_primitives as u32,
-            _padding: [0; 2],
+            // To be set later when generating the buffers
+            chunk_id: 0,
+            data_offset: 0,
+            primitive_header_offset: 0,
+            _padding: [0; 3],
             // column major, which is what wgpu expects
             trans_mat: mesh.trans_mat.as_slice().try_into().unwrap(),
         };
@@ -523,136 +585,51 @@ impl GPUMeshData {
 
 #[repr(C)]
 #[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct GPUVertexFromMesh {
-    pub index: [u32; 2],
-    pub mesh_index: u32,
-    pub _padding: u32,
-}
-
-impl GPUVertexFromMesh {
-    pub fn from_vertex_from_mesh(vertex_from_mesh: &VertexFromMesh) -> Self {
-        Self {
-            index: [vertex_from_mesh.index.0 as u32, vertex_from_mesh.index.1 as u32],
-            mesh_index: vertex_from_mesh.mesh_index,
-            _padding: 0,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct GPUNormFromMesh {
-    pub index: [u32; 2],        // 8 bytes
-    pub mesh_index: u32,        // 4 bytes
-    pub _padding: u32,          // 4 bytes padding
-    pub normal_transform: [f32; 12], // 48 bytes (3 rows of vec4), last element
-}
-
-impl GPUNormFromMesh {
-    // Convert a 3x3 matrix to a 4x3 matrix
-    // the last row is all 0
-    fn matrix3_to_padded_array(matrix: &nalgebra::Matrix3<f32>) -> [f32; 12] {
-        let mut array = [0.0; 12];
-        for col in 0..3 {
-            for row in 0..3 {
-                array[col * 4 + row] = matrix[(row, col)];
-            }
-        }
-        return array;
-    }
-    pub fn from_norm_from_mesh(norm_from_mesh: &NormFromMesh) -> Self {
-        Self {
-            index: [norm_from_mesh.index.0 as u32, norm_from_mesh.index.1 as u32],
-            mesh_index: norm_from_mesh.mesh_index,
-            _padding: 0,
-            normal_transform: Self::matrix3_to_padded_array(&norm_from_mesh.normal_transform),
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct GPURgbFromMesh {
-    pub index: [u32; 2],
-    pub mesh_index: u32,
-    pub _padding: u32
-}
-
-impl GPURgbFromMesh {
-    pub fn from_rgb_from_mesh(rgb_from_mesh: &RgbFromMesh) -> Self {
-        Self {
-            index: [rgb_from_mesh.index.0 as u32, rgb_from_mesh.index.1 as u32],
-            mesh_index: rgb_from_mesh.mesh_index,
-            _padding: 0,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct GPUDivertsRayFromMesh {
-    pub index: [u32; 2],
-    pub mesh_index: u32,
-    pub _padding: u32,
-}
-
-impl GPUDivertsRayFromMesh {
-    pub fn from_diverts_ray_from_mesh(diverts_ray_from_mesh: &DivertsRayFromMesh) -> Self {
-        Self {
-            index: [diverts_ray_from_mesh.index.0 as u32, diverts_ray_from_mesh.index.1 as u32],
-            mesh_index: diverts_ray_from_mesh.mesh_index,
-            _padding: 0,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GPUMeshTriangle {
-    pub verts: GPUVertexFromMesh,
-    pub norm: GPUNormFromMesh,
-    pub rgb: GPURgbFromMesh,
-    pub diverts_ray: GPUDivertsRayFromMesh,
+    pub mesh_index: u32,
+    pub prim_index: u32,
+    pub inner_index: u32,
     pub is_valid: u32,
-    _padding: [u32; 3],
+    pub normal_transform: [f32; 12], 
 }
 
 impl GPUMeshTriangle {
+    fn matrix3_to_padded_array(matrix: &nalgebra::Matrix3<f32>) -> [f32; 12] {
+        let mut gpu_data = Vec::with_capacity(12); // 3 columns × 4 floats
+        for i in 0..3 {
+            gpu_data.extend_from_slice(&matrix.column(i).as_slice());
+            gpu_data.push(0.0); // padding for each column
+        }
+        return gpu_data.try_into().unwrap();
+    }
+
     pub fn get_empty() -> Self {
         Self {
-            verts: GPUVertexFromMesh {
-                index: [0; 2],
-                mesh_index: 0,
-                _padding: 0,
-            },
-            norm: GPUNormFromMesh {
-                index: [0; 2],
-                mesh_index: 0,
-                _padding: 0,
-                normal_transform: [0.0; 12],
-            },
-            rgb: GPURgbFromMesh {
-                index: [0; 2],
-                mesh_index: 0,
-                _padding: 0,
-            },
-            diverts_ray: GPUDivertsRayFromMesh {
-                index: [0; 2],
-                mesh_index: 0,
-                _padding: 0,
-            },
+            mesh_index: 0,
+            prim_index: 0,
+            inner_index: 0,
             is_valid: 0,
-            _padding: [0; 3],
+            normal_transform: [0.0; 12],
         }
     }
     pub fn from_mesh_triangle(mesh_triangle: &MeshTriangle) -> Self {
+        assert!(mesh_triangle.norm.mesh_index == mesh_triangle.verts.mesh_index);
+        assert!(mesh_triangle.rgb.mesh_index == mesh_triangle.verts.mesh_index);
+        assert!(mesh_triangle.diverts_ray.mesh_index == mesh_triangle.verts.mesh_index);
+        assert!(mesh_triangle.norm.index == mesh_triangle.verts.index);
+        assert!(mesh_triangle.rgb.index == mesh_triangle.verts.index);
+        assert!(mesh_triangle.diverts_ray.index == mesh_triangle.verts.index);
+
+        let mesh_index = mesh_triangle.verts.mesh_index;
+        let (prim_index, inner_index) = mesh_triangle.verts.index;
+        let normal_transform = GPUMeshTriangle::matrix3_to_padded_array(&mesh_triangle.norm.normal_transform);
+
         Self {
-            verts: GPUVertexFromMesh::from_vertex_from_mesh(&mesh_triangle.verts),
-            norm: GPUNormFromMesh::from_norm_from_mesh(&mesh_triangle.norm),
-            rgb: GPURgbFromMesh::from_rgb_from_mesh(&mesh_triangle.rgb),
-            diverts_ray: GPUDivertsRayFromMesh::from_diverts_ray_from_mesh(&mesh_triangle.diverts_ray),
+            mesh_index,
+            prim_index: prim_index as u32,
+            inner_index: inner_index as u32,
             is_valid: 1,
-            _padding: [0; 3],
+            normal_transform,
         }
     }
 }
@@ -663,11 +640,6 @@ assert_gpu_aligned!(GPUUniformDiffuseSpec);
 assert_gpu_aligned!(GPUFreeTriangle);
 assert_gpu_aligned!(GPUSphere);
 assert_gpu_aligned!(GPUCubeMapFaceHeader);
-assert_gpu_aligned!(GPURgbF32ImageHeader);
 assert_gpu_aligned!(GPUMeshHeader);
 assert_gpu_aligned!(GPUPrimitiveHeader);
-assert_gpu_aligned!(GPUVertexFromMesh);
-assert_gpu_aligned!(GPUNormFromMesh);
-assert_gpu_aligned!(GPURgbFromMesh);
-assert_gpu_aligned!(GPUDivertsRayFromMesh);
 assert_gpu_aligned!(GPUMeshTriangle);

@@ -92,7 +92,7 @@ impl ComputePipeline {
         let mut curr_chunk_meshes = 0;
         for mesh in meshes {
             let gpu_mesh = GPUMeshData::from_mesh(mesh);
-            let (mesh_header, primitive_headers, mesh_data) = gpu_mesh.get_raw_buffers();
+            let (mut mesh_header, primitive_headers, mesh_data) = gpu_mesh.get_raw_buffers();
             let raw_data_size = mesh_data.len() * std::mem::size_of::<f32>();
             assert!(raw_data_size <= chunk_limit, "Mesh data too large for buffer");
             assert!(mesh_data.len() as u32 == mesh_header.length, "Mesh header size mismatch");
@@ -101,7 +101,11 @@ impl ComputePipeline {
                 curr_chunk += 1;
                 curr_chunk_size = 0;
                 curr_chunk_meshes = 0;
+                assert!(curr_chunk < GPU_NUM_MESH_BUFFERS, "Mesh data too large to fit in {} buffers", GPU_NUM_MESH_BUFFERS);
             }
+            mesh_header.chunk_id = curr_chunk as u32;
+            mesh_header.data_offset = mesh_data_chunks[curr_chunk].len() as u32;
+            mesh_header.primitive_header_offset = all_primitive_headers.len() as u32;
             all_mesh_headers.push(mesh_header);
             mesh_data_chunks[curr_chunk].extend(mesh_data);
             all_primitive_headers.extend(primitive_headers);

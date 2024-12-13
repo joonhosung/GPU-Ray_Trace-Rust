@@ -1,11 +1,12 @@
 const NONE = 0u;
-const MESH = 1u;
-const SPHERE = 2u;
-const CUBEMAP = 3u;
-const FREETRIANGLE = 4u;
+const SPHERE = 1u;
+const CUBEMAP = 2u;
+const FREETRIANGLE = 3u;
+const MESHTRIANGLE = 4u;
 const MAXF = 0x1.fffffep+127f;
 const MIN_INTERSECT = 0.0001f;
 const PI   = 3.1415926f;
+const NUM_MESH_CHUNKS = 4u;
 
 // For UniformDiffuseSpec
 const SPEC = 0u;
@@ -88,58 +89,69 @@ struct MeshChunkHeader {
 struct MeshHeader {
     length: u32,
     num_primitives: u32,
-    padding: vec2<u32>,
+    chunk_id: u32,
+    data_offset: u32,
+    primitive_header_offset: u32,
+    padding: vec3<u32>,
     trans_mat: mat4x4<f32>,
 }
 
 // 1 per primitive
 struct PrimitiveHeader {
     length: u32,
+    // offset to the start of the primitive data in the mesh data sequence.
+    // to access position, do chunk[mesh_header.data_offset + prim_header.mesh_data_offset + prim_header.position_offset]
+    // to access normal, do chunk[mesh_header.data_offset + prim_header.mesh_data_offset + prim_header.normal_offset]
+    // etc.
+    // where mesh_header is the header of the mesh containing this primitive
+    mesh_data_offset: u32,
+    position_offset: u32,
     position_count: u32,
+
+    normal_offset: u32,
     normal_count: u32,
+
+    triangle_offset: u32,
     triangle_count: u32,
+
+    rgb_info_factor_offset: u32,
+    rgb_info_coords_offset: u32,
     rgb_info_coords_count: u32,
+
+    norm_info_scale_offset: u32,
+    norm_info_coords_offset: u32,
     has_norm_info: u32,
     norm_info_coords_count: u32,
+
+    tangents_offset: u32,
     tangents_count: u32,
-    has_texture: u32,
-    has_normal_map: u32,
-    has_metal_rough_map: u32,
-    padding: u32,
-}
 
-struct VertexFromMesh {
-    index: vec2<u32>,
-    mesh_index: u32,
-    padding: u32,
-}
+    metal_rough_metal_offset: u32,
+    metal_rough_rough_offset: u32,
+    metal_rough_coords_offset: u32,
+    metal_rough_coords_count: u32,
 
-struct NormFromMesh {
-    index: vec2<u32>,
-    mesh_index: u32,
-    padding: u32,
-    normal_transform: mat3x4<f32>, // Last row is padded to all zeros
-}
+    texture_data_offset: u32,
+    texture_data_width: u32,
+    texture_data_height: u32,
 
-struct RgbFromMesh {
-    index: vec2<u32>,
-    mesh_index: u32,
-    padding: u32,
-}
+    normal_map_data_offset: u32,
+    normal_map_data_width: u32,
+    normal_map_data_height: u32,
 
-struct DivertsRayFromMesh {
-    index: vec2<u32>,
-    mesh_index: u32,
-    padding: u32,
+    metal_rough_map_data_offset: u32,
+    metal_rough_map_data_width: u32,
+    metal_rough_map_data_height: u32,
+
+    padding: vec2<f32>,
 }
 
 struct MeshTriangle {
-    verts: VertexFromMesh,
-    norms: NormFromMesh,
-    rgb: RgbFromMesh,
-    diverts_ray: DivertsRayFromMesh,
+    mesh_index: u32,
+    prim_index: u32,
+    inner_index: u32,
     is_valid: u32,
-    padding: vec3<f32>,
+    normal_transform: mat3x4<f32>, // Last row is padded to all zeros
 }
 
 struct Ray {
@@ -405,8 +417,6 @@ fn get_hit_info(ray: Ray, intersect: Intersection, rng: ptr<function, u32>) -> H
     var refl_ray = RayRefl(ray, 1f);
     var has_emissive = false;
     switch intersect.element_type {
-        case MESH: {return HitInfo(vec3(0f), vec3(0f), vec3(0f), refl_ray, false);}
-
         case SPHERE: {
             let perfect_pos = ray.origin + ray.direction * intersect.ray_distance;
             let norm = normalize(perfect_pos - spheres[intersect.element_idx].center.xyz);
@@ -448,6 +458,7 @@ fn get_hit_info(ray: Ray, intersect: Intersection, rng: ptr<function, u32>) -> H
             has_emissive = triangle.material.has_emissive > 0u;
             return HitInfo(triangle.material.emissive, pos, norm, refl_ray, has_emissive);
         }
+        case MESHTRIANGLE: {return HitInfo(vec3(0f), vec3(0f), vec3(0f), refl_ray, false);}
 
         default: {return HitInfo(vec3(0f), vec3(0f), vec3(0f), refl_ray, false);}
     }
@@ -504,20 +515,18 @@ fn get_refract(ray: Ray, norm: vec3<f32>, hit_point: vec3<f32>, n_in: f32, n_out
 
     if c22 < 0f {
         return spec;
-    } else {
-        let trns = n_over * ray.direction + norm_refr * (n_over * c - sqrt(c22));
-        let r0 = pow((n1 - n2)/(n1 + n2), 2f);
-
-        let re = r0 + (1f + r0) * pow(1 - dot(trns, norm), 5f);
-
-        let u = get_random_f32(rng);
-
-        if u < re {
-            return spec;
-        } else {
-            return RayRefl(Ray(normalize(trns), hit_point), 1f - re);
-        }
     }
+    let trns = n_over * ray.direction + norm_refr * (n_over * c - sqrt(c22));
+    let r0 = pow((n1 - n2)/(n1 + n2), 2f);
+
+    let re = r0 + (1f + r0) * pow(1 - dot(trns, norm), 5f);
+
+    let u = get_random_f32(rng);
+
+    if u < re {
+        return spec;
+    } 
+    return RayRefl(Ray(normalize(trns), hit_point), 1f - re);
 }
 
 ///////////////////////////////
@@ -525,10 +534,7 @@ fn get_refract(ray: Ray, norm: vec3<f32>, hit_point: vec3<f32>, n_in: f32, n_out
 ///////////////////////////////
 
 fn contains_valid_spheres() -> bool {
-    if arrayLength(&spheres) == 1u && spheres[0].is_valid == 0u {
-        return false;
-    }
-    return true;
+    return spheres[0].is_valid == 1u;
 }
 
 fn get_sphere_intersect(ray: Ray, i: u32) -> f32 {
@@ -558,23 +564,13 @@ fn get_sphere_intersect(ray: Ray, i: u32) -> f32 {
 
     return f32(-1.0); 
 }
-
-
 ///////////////////////////////
-// Free triangle functions
+// Triangle functions
 ///////////////////////////////
 
-fn contains_valid_free_triangles() -> bool {
-    if arrayLength(&free_triangles) == 1u && free_triangles[0].is_valid == 0u {
-        return false;
-    }
-    return true;
-}
-
-fn get_free_triangle_intersect(ray: Ray, i: u32) -> TriangleHitResult {
-    let triangle = free_triangles[i];
-    let e1 = triangle.vert2.xyz - triangle.vert1.xyz;
-    let e2 = triangle.vert3.xyz - triangle.vert1.xyz;
+fn get_triangle_intersect(ray: Ray, vert1: vec3<f32>, vert2: vec3<f32>, vert3: vec3<f32>) -> TriangleHitResult {
+    let e1 = vert2- vert1;
+    let e2 = vert3 - vert1;
     let ray_x_e2 = cross(ray.direction, e2);
     let det = dot(e1, ray_x_e2);
     let no_hit = TriangleHitResult(-1.0, vec2<f32>(-1.0, -1.0));
@@ -582,7 +578,7 @@ fn get_free_triangle_intersect(ray: Ray, i: u32) -> TriangleHitResult {
         return no_hit;
     }
     let inv_det = 1.0 / det;
-    let rhs = ray.origin - triangle.vert1.xyz;
+    let rhs = ray.origin - vert1;
     let u = inv_det * dot(rhs, ray_x_e2);
     if u < 0.0 || u > 1.0 {
         return no_hit;
@@ -601,13 +597,34 @@ fn get_free_triangle_intersect(ray: Ray, i: u32) -> TriangleHitResult {
 }
 
 ///////////////////////////////
+// Free triangle functions
+///////////////////////////////
+
+fn contains_valid_free_triangles() -> bool {
+    return free_triangles[0].is_valid == 1u;
+}
+
+fn get_free_triangle_intersect(ray: Ray, i: u32) -> TriangleHitResult {
+    let triangle = free_triangles[i];
+    return get_triangle_intersect(ray, triangle.vert1.xyz, triangle.vert2.xyz, triangle.vert3.xyz);
+}
+
+///////////////////////////////
+// Mesh Triangle functions
+///////////////////////////////
+fn num_meshes_in_chunk(chunk: u32) -> u32 {
+    return mesh_chunk_headers[chunk].num_meshes;
+}
+
+fn contains_valid_mesh_triangles() -> bool {
+    return mesh_triangles[0].is_valid == 1u;
+}
+
+///////////////////////////////
 // Cube map functions
 ///////////////////////////////
 fn num_cube_map_faces() -> u32 {
-    if arrayLength(&cube_map_headers) == 1u && cube_map_headers[0].width == 0u {
-        return 0u;
-    }
-    return arrayLength(&cube_map_headers);
+    return select(arrayLength(&cube_map_headers), 0u, arrayLength(&cube_map_headers) == 1u && cube_map_headers[0].width == 0u);
 }
 
 fn get_cube_map_face_offset(face_index: u32) -> u32 {
@@ -699,20 +716,6 @@ fn hit_info_distant_cube_map(ray: Ray) -> vec4<f32> {
     let rgb = sample_face(face_index, u, v, fact);
     let rgba = vec4<f32>(rgb, 0.0);
     return rgba;
-}
-
-///////////////////////////////
-// Mesh functions
-///////////////////////////////
-fn num_meshes_in_chunk(chunk: u32) -> u32 {
-    return mesh_chunk_headers[chunk].num_meshes;
-}
-
-fn contains_valid_mesh_triangles() -> bool {
-    if arrayLength(&mesh_triangles) == 1u && mesh_triangles[0].is_valid == 0u {
-        return false;
-    }
-    return true;
 }
 
 
