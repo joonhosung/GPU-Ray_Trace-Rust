@@ -223,39 +223,54 @@ var<storage, read> free_triangles: array<FreeTriangle>;
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let pixel_index = get_pixel_index(global_id.x, global_id.y, render_info.width);
-    var seed = initRng();
+    
     let ray_compute = create_ray_compute(vec2<u32>(render_info.width, render_info.height), camera);
     var sample_count = 0.0;
     var colour = vec3<f32>(0f);
 
+    var seed = initRng(global_id, render_info.samps_per_pix);
+
     // FIXME: Sanity for Jackson in the morning to try with camera ray generation sanity (rasterization)
     // PUT PIXEL GENRATION HERE
     for (var i = 0u; i < render_info.samps_per_pix; i += 1u) {
+        seed = initRng(global_id, seed);
+        
         var intensity = 1f;
         var ray = pix_cam_to_rand_ray(ray_compute, vec2<u32>(global_id.x, global_id.y), camera, &seed);
         var hit_info: HitInfo;
         var ray_intersect: Intersection;
         var colour_inner = vec3<f32>(0f);
         var colour_intensity = vec3(1f);
-        for (var bounce = 0f; bounce < 5f; bounce += 1f) {
+        var bounce = 0u; // bounce < render_info.assured_depth; bounce ++) {
+        loop {
             ray_intersect = get_ray_intersect(ray, &hit_info, &seed);
             
             // generate another ray to bounce off of 
             ray = hit_info.refl_ray.ray;
             
             if !ray_intersect.has_bounce || hit_info.has_emissive {
-                colour_inner += (hit_info.emissive * colour_intensity ); //* intensity;
-                break;
+                // colour_intensity = normalize(colour_intensity);
+                colour_inner += hit_info.emissive * colour_intensity * intensity;
+                colour_intensity *= ray_intersect.colour.xyz;
+                if !ray_intersect.has_bounce {break;}
             };
 
             // if hit_info.has_emissive {
             //     colour_inner += hit_info.emissive;
             // }
             // colour_inner *= ray_intersect.colour.xyz;
+            
             colour_intensity *= ray_intersect.colour.xyz;
-            // colour_inner *= intensity; //* ray_intersect.colour.xyz * intensity;
+            
+            if (bounce >= render_info.assured_depth) && (get_random_f32(&seed) > render_info.max_threshold){
+                colour_intensity /= vec3(render_info.max_threshold);
+                colour_inner +=  colour_intensity * intensity;//vec3(intensity) * ray_intersect.colour.xyz;//intensity * render_info.max_threshold;
+                break;
+            }
+            
             intensity *= hit_info.refl_ray.intensity;
 
+            bounce++;
         }
         
         colour = (colour_inner + (colour * sample_count) ) / (sample_count + 1.0);
@@ -267,29 +282,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     render_target[pixel_index + 2] = colour.z;//(colour.z + (render_target[pixel_index + 2] * sample_count)) / (sample_count + 1.0);
     render_target[pixel_index + 3] = 1f; //colour.w;//(colour.w + (render_target[pixel_index + 3] * sample_count)) / (sample_count + 1.0);
 }
-// Shader algorithm for now:
-
-    // For loop for samps_per_pix
-    // for (i < samps_per_pix) 
-    //     (do rendering)
-    //    from this pixel:
-    //         generate random ray based on generate.rs (function 1) (Jackson)
-    //         with this random ray:
-    //              get the first object hit based on intersect (function 2) (Jun Ho) (kd tree can help reduce this by a LOT)
-    //        (Loop 1) if there is a hit, until the minimum assured bounces: (russian roullette filter)
-    //                  See if we continue the ray. If continue ray: (function 3)
-    //                       Return colour and generate new ray from the ray that just got hit (function 4)
-    //                       With the new ray reflected off the hit object, Loop 1 again.
-    //                         establish_dls_contrib doesn't get called at any scheme now. Don't implement??
-    //                  If don't continue:
-    //                       Just update the colour of the pixel
-    // Update pixel using incoming_rgb from the last loop 1.
-
-    // Struct 1: RAY
-    // Two vectors called d & o (direction & origin)
-
-    // let == immutable
-    // var == mutable!!
 
 fn get_pixel_index(x: u32, y: u32, width: u32) -> u32 {
     return 4 * (y * width + x);
@@ -353,7 +345,7 @@ fn pix_cam_raw_ray(compute: RayCompute, pixel: vec2<u32>, camera: Camera, rng: p
 
 fn get_ray_intersect(ray: Ray, hit_info: ptr<function, HitInfo>, rng: ptr<function, u32>) -> Intersection {
     // Initialize intersect struct
-    var intersect = Intersection(vec4<f32>(1f, 0f, 0f, 1f), NONE, 0u, false, 0f);
+    var intersect = Intersection(vec4<f32>(0f, 0f, 0f, 1f), NONE, 0u, false, 0f);
     var closest_intersect = MAXF;
     
     // Iterate through every sphere 
@@ -435,7 +427,7 @@ fn get_hit_info(ray: Ray, intersect: Intersection, rng: ptr<function, u32>) -> H
                 case SPEC: {refl_ray = get_spec(ray, norm, pos);}
                 case DIFF: {refl_ray = get_diff(ray, norm, pos, rng);}
                 case DIFFSPEC: {
-                    let u: bool = get_random_f32(rng) < spheres[intersect.element_idx].material.diffp * MAXF;
+                    let u: bool = get_random_f32(rng) < spheres[intersect.element_idx].material.diffp;
                     if u {refl_ray = get_diff(ray, norm, pos, rng);}
                     else {refl_ray = get_spec(ray, norm, pos);}
                 }
@@ -456,8 +448,8 @@ fn get_hit_info(ray: Ray, intersect: Intersection, rng: ptr<function, u32>) -> H
 
 // Specular "mirror" reflection
 fn get_spec(ray: Ray, norm: vec3<f32>, hit_point: vec3<f32>) -> RayRefl {
-    let new_ray = Ray(normalize(ray.direction - norm * 2f * dot(ray.direction, norm)), ray.origin);
-
+    // let new_ray = Ray(normalize(ray.direction - norm * 2f * dot(ray.direction, norm)), ray.origin);
+    let new_ray = Ray(reflect(ray.direction, norm), hit_point);
     return RayRefl(new_ray, 1f);
 }
 
@@ -477,7 +469,7 @@ fn get_diff(ray: Ray, norm: vec3<f32>, hit_point: vec3<f32>, rng: ptr<function, 
 
     let d = normalize(xd * x + yd * y + norm * sqrt(max(1f - u, 0f)));
 
-    return RayRefl(Ray(d, ray.origin), 1f);
+    return RayRefl(Ray(d, hit_point), 1f);
 }
 
 // Refraction "prism effect"
@@ -487,6 +479,7 @@ fn get_refract(ray: Ray, norm: vec3<f32>, hit_point: vec3<f32>, n_in: f32, n_out
     var n2: f32;
     var norm_refr: vec3<f32>;
 
+    // refract(ray.direction)
     if c < 0f {
         n1 = n_out;
         n2 = n_in;
@@ -654,6 +647,17 @@ fn contains_valid_mesh_triangles() -> bool {
     return true;
 }
 
+
+//////////////////////////////////
+// Random Number Generation
+/////////////////////////////////
+
+// Shoutout to: https://github.com/boksajak/referencePT
+fn initRng(global_id: vec3<u32>, in_seed: u32) -> u32 {
+    let seed: u32 = dot(global_id.xy, vec2(render_info.width, render_info.height)) ^ jenkinsHash(in_seed);
+    return jenkinsHash(seed);
+}
+
 // Generate random float between 0 and 1
 fn get_random_f32(seed: ptr<function, u32>) -> f32 {
     // let seed = 88888888u;
@@ -662,15 +666,6 @@ fn get_random_f32(seed: ptr<function, u32>) -> f32 {
     let word = ((newState >> ((newState >> 28u) + 4u)) ^ newState) * 277803737u;
     let x = (word >> 22u) ^ word;
     return f32(x) / f32(0xffffffffu);
-}
-
-
-// fn initRng(pixel: vec2<u32>, resolution: vec2<u32>, frame: u32) -> u32 {
-fn initRng() -> u32 {
-    // Adapted from https://github.com/boksajak/referencePT
-    // let seed = dot(pixel, vec2<u32>(1u, resolution.x)) ^ jenkinsHash(frame);
-    let seed = 88888888u ^ jenkinsHash(12345678u);
-    return jenkinsHash(seed);
 }
 
 fn jenkinsHash(input: u32) -> u32 {
