@@ -172,12 +172,12 @@ var<storage, read> mesh_triangles: array<MeshTriangle>;
 var<storage, read> spheres: array<Sphere>;
 
 @group(3) @binding(1)
-var<storage, read> cube_map_offsets: array<i32>;
+var<storage, read> cube_map_headers: array<CubeMapFaceHeader>;
 
 @group(3) @binding(2)
-var<storage, read> cube_maps: array<f32>;
+var<storage, read> cube_map_faces: array<f32>;
 
-@group(3) @binding(3)
+@group(3) @binding(2)
 var<storage, read> free_triangles: array<FreeTriangle>;
 
 
@@ -307,10 +307,9 @@ fn pix_cam_raw_ray(compute: RayCompute, pixel: vec2<u32>, camera: Camera, rng: p
 
 fn get_ray_intersect(ray: Ray, hit_info: ptr<function, HitInfo>, rng: ptr<function, u32>) -> Intersection {
     // Initialize intersect struct
-    var intersect = Intersection(vec4<f32>(0f, 0f, 0f, 0f), NONE, 0u, false, 0f);
+    var intersect = Intersection(vec4<f32>(1f, 0f, 0f, 1f), NONE, 0u, false, 0f);
     var closest_intersect = MAXF;
     
-
     // Iterate through every sphere 
     if (contains_valid_spheres()) {
         for (var i = 0u; i < arrayLength(&spheres); i++) { 
@@ -332,9 +331,8 @@ fn get_ray_intersect(ray: Ray, hit_info: ptr<function, HitInfo>, rng: ptr<functi
     // for(var i = 0u; i < arrayLength(&meshes TODO: what's the best thing to iterate with??); i++) {  
 
     // If no hit get the cubemap background color
-    if intersect.element_type == NONE {
-        // Just grey for now. Add intersection later
-        intersect = Intersection(vec4<f32>(0.5f, 0.5f, 0.5f, 1f), CUBEMAP, 0u, false, MAXF);
+    if intersect.element_type == NONE && num_cube_map_faces() > 0u {
+        intersect = Intersection(hit_info_distant_cube_map(ray), CUBEMAP, 0u, false, MAXF);
     } else {
         *hit_info = get_hit_info(ray, intersect, rng);
         intersect.has_bounce = true;
@@ -491,13 +489,6 @@ fn contains_valid_mesh_triangles() -> bool {
     return true;
 }
 
-fn num_cube_maps() -> u32 {
-    if cube_map_offsets[0] == -1 {
-        return 0u;
-    }
-    return u32(arrayLength(&cube_map_offsets));
-}
-
 fn num_meshes_in_chunk(chunk: u32) -> i32 {
     if chunk == 0 {
         return i32(mesh_chunk_0[0]);
@@ -511,21 +502,105 @@ fn num_meshes_in_chunk(chunk: u32) -> i32 {
     return -1;
 }
 
+///////////////////////////////
+// Cube map functions
+///////////////////////////////
+fn num_cube_map_faces() -> u32 {
+    if arrayLength(&cube_map_headers) == 1u && cube_map_headers[0].width == 0u {
+        return 0u;
+    }
+    return arrayLength(&cube_map_headers);
+}
 
-fn get_distant_cube_map_face_offset(cube_map_index: u32, face_index: u32) -> u32 {
-    var offset = u32(cube_map_offsets[cube_map_index]);
+fn get_cube_map_face_offset(face_index: u32) -> u32 {
+    // need to skip the first element which is the length
+    var offset = 0u;
     var curr_face_index = 0u;
     while curr_face_index < face_index {
-        let cube_map_face_header = CubeMapFaceHeader(
-            u32(cube_maps[offset]),
-            u32(cube_maps[offset + 1]),
-            f32(cube_maps[offset + 2]),
-            f32(cube_maps[offset + 3]),
-        );
-        offset += 4u + (cube_map_face_header.width * cube_map_face_header.height);
+        let header = cube_map_headers[curr_face_index];
+        offset += (3u * header.width * header.height);
         curr_face_index += 1u;
     }
     return offset;
+}
+
+fn get_cube_map_face_pixel(face_id: u32, u: f32, v: f32) -> vec3<f32> {
+    let header = cube_map_headers[face_id];
+    let offset = get_cube_map_face_offset(face_id);
+    let px = u32(trunc(clamp(u * f32(header.width), 0.0, f32(header.width - 1u))));
+    let py = u32(trunc(clamp(v * f32(header.height), 0.0, f32(header.height - 1u))));
+
+    let pixel_offset = offset + 3u * (px + py * header.width);
+    return vec3<f32>(
+        cube_map_faces[pixel_offset],
+        cube_map_faces[pixel_offset + 1u],
+        cube_map_faces[pixel_offset + 2u],
+    );
+
+}
+
+fn sample_face(face_index: u32, u: f32, v: f32, fact: f32) -> vec3<f32> {
+    let header = cube_map_headers[face_index];
+
+    var scaled_u = u * header.uv_scale_x / fact;
+    var scaled_v = v * header.uv_scale_y / fact;
+
+    scaled_u = 0.5 * scaled_u + 0.5;
+    scaled_v = 0.5 * scaled_v + 0.5;
+
+    return get_cube_map_face_pixel(face_index, scaled_u, scaled_v);
+}
+
+fn hit_info_distant_cube_map(ray: Ray) -> vec4<f32> {
+    let comps = abs(ray.direction.xyz);
+    var face_index = 0u;
+    var u: f32 = -1f;
+    var v: f32 = -1f;
+    var fact: f32 = -1f;
+    let d = normalize(ray.direction.xyz);
+    // Find the largest component and determine which face to sample
+    // 0 -> neg_z, 1 -> pos_z, 2 -> neg_x, 3 -> pos_x, 4 -> neg_y, 5 -> pos_y
+    if comps.x >= comps.y && comps.x >= comps.z {
+        if d.x < 0.0 {
+            u = d.z;
+            v = d.y;
+            fact = d.x;
+            face_index = 2u; // neg_x
+        } else {
+            u = d.z;
+            v = d.y;
+            fact = d.x;
+            face_index = 3u; // pos_x
+        }
+    } else if comps.y >= comps.x && comps.y >= comps.z {
+        if d.y < 0.0 {
+            u = d.x;
+            v = d.z;
+            fact = d.y;
+            face_index = 4u; // neg_y
+        } else {
+            u = d.x;
+            v = d.z;
+            fact = d.y;
+            face_index = 5u; // pos_y
+        }
+    } else if comps.z >= comps.x && comps.z >= comps.y {
+        if d.z < 0.0 {
+            u = d.x;
+            v = d.y;
+            fact = d.z;
+            face_index = 0u; // neg_z
+        } else {
+            u = d.x;
+            v = d.y;
+            fact = d.z;
+            face_index = 1u; // pos_z
+        }
+    }
+
+    let rgb = sample_face(face_index, u, v, fact);
+    let rgba = vec4<f32>(rgb, 0.0);
+    return rgba;
 }
 
 // Generate random float between 0 and 1
