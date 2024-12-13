@@ -123,8 +123,8 @@ pub struct GPUFreeTriangle {
     pub vert3: [f32; 4],
     pub norm: [f32; 4],
     pub rgb: [f32; 4],
+    pub _padding: [f32; 3],
     pub is_valid: u32,
-    _padding: [f32; 3],
     pub material: GPUUniformDiffuseSpec,
 }
 
@@ -136,8 +136,8 @@ impl GPUFreeTriangle {
             vert3: [0.0; 4],
             norm: [0.0; 4],
             rgb: [0.0; 4],
-            is_valid: 0,
             _padding: [0.0; 3],
+            is_valid: 0,
             material: GPUUniformDiffuseSpec {
                 emissive: [0.0; 3],
                 has_emissive: 0,
@@ -149,16 +149,17 @@ impl GPUFreeTriangle {
         }
     }
     pub fn from_free_triangle(triangle: &FreeTriangle) -> Self {
-        Self {
+        let gpu_triangle = Self {
             vert1: [triangle.verts[0].x, triangle.verts[0].y, triangle.verts[0].z, 1.0],
             vert2: [triangle.verts[1].x, triangle.verts[1].y, triangle.verts[1].z, 1.0],
             vert3: [triangle.verts[2].x, triangle.verts[2].y, triangle.verts[2].z, 1.0],
             norm: [triangle.norm.0.x, triangle.norm.0.y, triangle.norm.0.z, 0.0],
             rgb: [triangle.rgb.x, triangle.rgb.y, triangle.rgb.z, 0.0],
-            is_valid: 1,
             _padding: [0.0; 3],
+            is_valid: 1,
             material: GPUUniformDiffuseSpec::from_material(&triangle.diverts_ray),
-        }
+        };
+        return gpu_triangle;
     }
 }
 

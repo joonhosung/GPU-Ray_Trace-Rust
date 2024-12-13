@@ -1,7 +1,8 @@
-const MESH = 0u;
-const SPHERE = 1u;
-const CUBEMAP = 2u;
-const NONE = 3u;
+const NONE = 0u;
+const MESH = 1u;
+const SPHERE = 2u;
+const CUBEMAP = 3u;
+const FREETRIANGLE = 4u;
 const MAXF = 0x1.fffffep+127f;
 const MIN_INTERSECT = 0.0001f;
 const PI   = 3.1415926f;
@@ -64,8 +65,8 @@ struct FreeTriangle {
     vert3: vec4<f32>,
     norm: vec4<f32>,
     rgb: vec4<f32>,
-    is_valid: u32,
     padding: vec3<f32>,
+    is_valid: u32,
     material: UniformDiffuseSpec,
 }
 
@@ -166,6 +167,11 @@ struct Intersection {
     ray_distance: f32,
 }
 
+struct TriangleHitResult {
+    l: f32,
+    barycentric: vec2<f32>,
+}
+
 // Is this right? 6 arrays of data 
 // struct CubeMapData {
 //     headers: array<CubeMapFaceHeader, 6>,
@@ -216,7 +222,7 @@ var<storage, read> cube_map_headers: array<CubeMapFaceHeader>;
 @group(3) @binding(2)
 var<storage, read> cube_map_faces: array<f32>;
 
-@group(3) @binding(2)
+@group(3) @binding(3)
 var<storage, read> free_triangles: array<FreeTriangle>;
 
 
@@ -230,8 +236,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     var seed = initRng(global_id, render_info.samps_per_pix);
 
-    // FIXME: Sanity for Jackson in the morning to try with camera ray generation sanity (rasterization)
-    // PUT PIXEL GENRATION HERE
     for (var i = 0u; i < render_info.samps_per_pix; i += 1u) {
         seed = initRng(global_id, seed);
         
@@ -252,7 +256,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
                 // colour_intensity = normalize(colour_intensity);
                 colour_inner += hit_info.emissive * colour_intensity * intensity;
                 colour_intensity *= ray_intersect.colour.xyz;
-                if !ray_intersect.has_bounce {break;}
+                if !ray_intersect.has_bounce {
+                    break;
+                }
             };
 
             // if hit_info.has_emissive {
@@ -273,14 +279,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             bounce++;
         }
         
-        colour = (colour_inner + (colour * sample_count) ) / (sample_count + 1.0);
+        colour = (colour_inner + (colour * sample_count)) / (sample_count + 1.0);
         sample_count += 1.0;
     }
-    // colour = normalize(colour);
-    render_target[pixel_index]     = colour.x;//(colour.x + (render_target[pixel_index] * sample_count)) / (sample_count + 1.0);
-    render_target[pixel_index + 1] = colour.y;//(colour.y + (render_target[pixel_index + 1] * sample_count)) / (sample_count + 1.0);
-    render_target[pixel_index + 2] = colour.z;//(colour.z + (render_target[pixel_index + 2] * sample_count)) / (sample_count + 1.0);
-    render_target[pixel_index + 3] = 1f; //colour.w;//(colour.w + (render_target[pixel_index + 3] * sample_count)) / (sample_count + 1.0);
+    render_target[pixel_index]     = colour.x;
+    render_target[pixel_index + 1] = colour.y;
+    render_target[pixel_index + 2] = colour.z;
+    render_target[pixel_index + 3] = 1f;
 }
 
 fn get_pixel_index(x: u32, y: u32, width: u32) -> u32 {
@@ -352,18 +357,23 @@ fn get_ray_intersect(ray: Ray, hit_info: ptr<function, HitInfo>, rng: ptr<functi
     if (contains_valid_spheres()) {
         for (var i = 0u; i < arrayLength(&spheres); i++) { 
             let got_dist = get_sphere_intersect(ray, i);
-            if got_dist != -1f {
-                if got_dist < closest_intersect {
-                    closest_intersect = got_dist;
-                    
-                    intersect = Intersection(spheres[i].coloring, SPHERE, i, false, got_dist);
-                }
+            if got_dist != -1f && got_dist < closest_intersect {
+                closest_intersect = got_dist;
+                intersect = Intersection(spheres[i].coloring, SPHERE, i, false, got_dist);
             }
         }
     }
 
     // Iterate through every free triangle
-    // for(var i = 0u; i < arrayLength(&free_triangles); i++) {  
+    if (contains_valid_free_triangles()) {
+        for (var i = 0u; i < arrayLength(&free_triangles); i++) {
+            let hit_result = get_free_triangle_intersect(ray, i);
+            if hit_result.l != -1f && hit_result.l < closest_intersect {
+                closest_intersect = hit_result.l;
+                intersect = Intersection(free_triangles[i].rgb, FREETRIANGLE, i, false, hit_result.l);
+            }
+        }
+    }
     
     // Iterate through every mesh triangle
     // for(var i = 0u; i < arrayLength(&meshes TODO: what's the best thing to iterate with??); i++) {  
@@ -381,35 +391,6 @@ fn get_ray_intersect(ray: Ray, hit_info: ptr<function, HitInfo>, rng: ptr<functi
     return intersect;
 }
 // Returns hit index and ray length
-
-fn get_sphere_intersect(ray: Ray, i: u32) -> f32 {
-    let oc = ray.origin - spheres[i].center.xyz;
-    let dir = dot(ray.direction, oc);
-    let consts = dot(oc, oc) - (spheres[i].radius * spheres[i].radius);
-
-    let discr = (dir * dir) - consts;
-
-    // If the ray crosses the sphere, return the colour of the closer intersection
-    if discr > 0.0 { 
-        let offset = -dir;
-        let thing = sqrt(discr);
-        let intersect_dist_a = offset - thing;
-        let intersect_dist_b = offset + thing;
-
-        if (intersect_dist_a > MIN_INTERSECT) && (intersect_dist_a < intersect_dist_b) {
-            return intersect_dist_a;
-        } else if (intersect_dist_b > MIN_INTERSECT) && (intersect_dist_a > intersect_dist_b) {
-            return intersect_dist_b;
-        }
-        
-        // distance can't be negative
-        return f32(-1.0); 
-        // TODO: Should calculate how the ray is diverted
-    }
-
-    return f32(-1.0); 
-}
-
 
 fn get_hit_info(ray: Ray, intersect: Intersection, rng: ptr<function, u32>) -> HitInfo {
     var refl_ray = RayRefl(ray, 1f);
@@ -435,11 +416,28 @@ fn get_hit_info(ray: Ray, intersect: Intersection, rng: ptr<function, u32>) -> H
                 default: {}
             }
 
-            if spheres[intersect.element_idx].material.has_emissive > 0u {
-                has_emissive = true;
+            has_emissive = spheres[intersect.element_idx].material.has_emissive > 0u;
+            return HitInfo(spheres[intersect.element_idx].material.emissive, pos, norm, refl_ray, has_emissive);
+        }
+        case FREETRIANGLE: {
+            let triangle = free_triangles[intersect.element_idx];
+            let norm = triangle.norm.xyz;
+            let pos = ray.direction * intersect.ray_distance + ray.origin + norm * MIN_INTERSECT;
+
+            switch triangle.material.divert_ray_type {
+                case SPEC: {refl_ray = get_spec(ray, norm, pos);}
+                case DIFF: {refl_ray = get_diff(ray, norm, pos, rng);}
+                case DIFFSPEC: {
+                    let u: bool = get_random_f32(rng) < triangle.material.diffp;
+                    if u {refl_ray = get_diff(ray, norm, pos, rng);}
+                    else {refl_ray = get_spec(ray, norm, pos);}
+                }
+                case DIELECTRIC: {refl_ray = get_refract(ray, norm, pos, triangle.material.n_in, triangle.material.n_out, rng);}
+                default: {}
             }
 
-            return HitInfo(spheres[intersect.element_idx].material.emissive, pos, norm, refl_ray, has_emissive);
+            has_emissive = triangle.material.has_emissive > 0u;
+            return HitInfo(triangle.material.emissive, pos, norm, refl_ray, has_emissive);
         }
 
         default: {return HitInfo(vec3(0f), vec3(0f), vec3(0f), refl_ray, false);}
@@ -513,16 +511,49 @@ fn get_refract(ray: Ray, norm: vec3<f32>, hit_point: vec3<f32>, n_in: f32, n_out
     }
 }
 
+///////////////////////////////
+// Sphere functions
+///////////////////////////////
 
-// 
-// Utility functions
-//
 fn contains_valid_spheres() -> bool {
     if arrayLength(&spheres) == 1u && spheres[0].is_valid == 0u {
         return false;
     }
     return true;
 }
+
+fn get_sphere_intersect(ray: Ray, i: u32) -> f32 {
+    let oc = ray.origin - spheres[i].center.xyz;
+    let dir = dot(ray.direction, oc);
+    let consts = dot(oc, oc) - (spheres[i].radius * spheres[i].radius);
+
+    let discr = (dir * dir) - consts;
+
+    // If the ray crosses the sphere, return the colour of the closer intersection
+    if discr > 0.0 { 
+        let offset = -dir;
+        let thing = sqrt(discr);
+        let intersect_dist_a = offset - thing;
+        let intersect_dist_b = offset + thing;
+
+        if (intersect_dist_a > MIN_INTERSECT) && (intersect_dist_a < intersect_dist_b) {
+            return intersect_dist_a;
+        } else if (intersect_dist_b > MIN_INTERSECT) && (intersect_dist_a > intersect_dist_b) {
+            return intersect_dist_b;
+        }
+        
+        // distance can't be negative
+        return f32(-1.0); 
+        // TODO: Should calculate how the ray is diverted
+    }
+
+    return f32(-1.0); 
+}
+
+
+///////////////////////////////
+// Free triangle functions
+///////////////////////////////
 
 fn contains_valid_free_triangles() -> bool {
     if arrayLength(&free_triangles) == 1u && free_triangles[0].is_valid == 0u {
@@ -531,6 +562,34 @@ fn contains_valid_free_triangles() -> bool {
     return true;
 }
 
+fn get_free_triangle_intersect(ray: Ray, i: u32) -> TriangleHitResult {
+    let triangle = free_triangles[i];
+    let e1 = triangle.vert2.xyz - triangle.vert1.xyz;
+    let e2 = triangle.vert3.xyz - triangle.vert1.xyz;
+    let ray_x_e2 = cross(ray.direction, e2);
+    let det = dot(e1, ray_x_e2);
+    let no_hit = TriangleHitResult(-1.0, vec2<f32>(-1.0, -1.0));
+    if abs(det) < MIN_INTERSECT {
+        return no_hit;
+    }
+    let inv_det = 1.0 / det;
+    let rhs = ray.origin - triangle.vert1.xyz;
+    let u = inv_det * dot(rhs, ray_x_e2);
+    if u < 0.0 || u > 1.0 {
+        return no_hit;
+    }
+    let rhs_x_e1 = cross(rhs, e1);
+    let v = inv_det * dot(ray.direction, rhs_x_e1);
+    if v < 0.0 || u + v > 1.0 {
+        return no_hit;
+    }
+    let l = inv_det * dot(e2, rhs_x_e1);
+    if l < MIN_INTERSECT {
+        return no_hit;
+    }
+    let hit_result = TriangleHitResult(l, vec2<f32>(u, v));
+    return hit_result;
+}
 
 ///////////////////////////////
 // Cube map functions
