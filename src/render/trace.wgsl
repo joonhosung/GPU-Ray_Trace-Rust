@@ -76,6 +76,35 @@ struct CubeMapFaceHeader {
     uv_scale_y: f32,
 }
 
+struct MeshChunkHeader {
+    num_meshes: u32,
+    padding: vec3<u32>,
+}
+
+// 1 per mesh, a mesh can have multiple primitives
+struct MeshHeader {
+    length: u32,
+    num_primitives: u32,
+    padding: vec2<u32>,
+    trans_mat: mat4x4<f32>,
+}
+
+// 1 per primitive
+struct PrimitiveHeader {
+    length: u32,
+    position_count: u32,
+    normal_count: u32,
+    triangle_count: u32,
+    rgb_info_coords_count: u32,
+    has_norm_info: u32,
+    norm_info_coords_count: u32,
+    tangents_count: u32,
+    has_texture: u32,
+    has_normal_map: u32,
+    has_metal_rough_map: u32,
+    padding: u32,
+}
+
 struct VertexFromMesh {
     index: vec2<u32>,
     mesh_index: u32,
@@ -155,18 +184,27 @@ var<uniform> render_info: RenderInfo;
 var<storage, read_write> render_target: array<f32>;
 
 @group(2) @binding(0)
-var<storage, read> mesh_chunk_0: array<f32>;
+var<storage, read> mesh_chunk_headers: array<MeshChunkHeader>;
 
 @group(2) @binding(1)
-var<storage, read> mesh_chunk_1: array<f32>;
+var<storage, read> mesh_headers: array<MeshHeader>;
 
 @group(2) @binding(2)
-var<storage, read> mesh_chunk_2: array<f32>;
+var<storage, read> primitive_headers: array<PrimitiveHeader>;
 
 @group(2) @binding(3)
-var<storage, read> mesh_chunk_3: array<f32>;
+var<storage, read> mesh_data_chunk_0: array<f32>;
 
 @group(2) @binding(4)
+var<storage, read> mesh_data_chunk_1: array<f32>;
+
+@group(2) @binding(5)
+var<storage, read> mesh_data_chunk_2: array<f32>;
+
+@group(2) @binding(6)
+var<storage, read> mesh_data_chunk_3: array<f32>;
+
+@group(2) @binding(7)
 var<storage, read> mesh_triangles: array<MeshTriangle>;
 
 @group(3) @binding(0)
@@ -500,25 +538,6 @@ fn contains_valid_free_triangles() -> bool {
     return true;
 }
 
-fn contains_valid_mesh_triangles() -> bool {
-    if arrayLength(&mesh_triangles) == 1u && mesh_triangles[0].is_valid == 0u {
-        return false;
-    }
-    return true;
-}
-
-fn num_meshes_in_chunk(chunk: u32) -> i32 {
-    if chunk == 0 {
-        return i32(mesh_chunk_0[0]);
-    } else if chunk == 1 {
-        return i32(mesh_chunk_1[0]);
-    } else if chunk == 2 {
-        return i32(mesh_chunk_2[0]);
-    } else if chunk == 3 {
-        return i32(mesh_chunk_3[0]);
-    }
-    return -1;
-}
 
 ///////////////////////////////
 // Cube map functions
@@ -619,6 +638,20 @@ fn hit_info_distant_cube_map(ray: Ray) -> vec4<f32> {
     let rgb = sample_face(face_index, u, v, fact);
     let rgba = vec4<f32>(rgb, 0.0);
     return rgba;
+}
+
+///////////////////////////////
+// Mesh functions
+///////////////////////////////
+fn num_meshes_in_chunk(chunk: u32) -> u32 {
+    return mesh_chunk_headers[chunk].num_meshes;
+}
+
+fn contains_valid_mesh_triangles() -> bool {
+    if arrayLength(&mesh_triangles) == 1u && mesh_triangles[0].is_valid == 0u {
+        return false;
+    }
+    return true;
 }
 
 // Generate random float between 0 and 1
