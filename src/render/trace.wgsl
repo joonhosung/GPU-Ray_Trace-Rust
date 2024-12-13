@@ -45,6 +45,7 @@ struct HitInfo {
     emissive: vec3<f32>,
     pos: vec3<f32>,
     norm: vec3<f32>,
+    refl_ray: RayRefl,
 }
 
 struct Sphere {
@@ -186,19 +187,40 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var seed = initRng();
     let ray_compute = create_ray_compute(vec2<u32>(render_info.width, render_info.height), camera);
     var sample_count = 0.0;
+    var colour = vec4<f32>(0f);
+
     // FIXME: Sanity for Jackson in the morning to try with camera ray generation sanity (rasterization)
     // PUT PIXEL GENRATION HERE
     for (var i = 0u; i < render_info.samps_per_pix; i += 1u) {
-        let ray = pix_cam_to_rand_ray(ray_compute, vec2<u32>(global_id.x, global_id.y), camera, &seed);
-        let ray_intersect = get_ray_intersect(ray);
-        render_target[pixel_index] = (ray_intersect.colour.x + (render_target[pixel_index] * sample_count)) / (sample_count + 1.0);
-        render_target[pixel_index + 1] = (ray_intersect.colour.y + (render_target[pixel_index + 1] * sample_count)) / (sample_count + 1.0);
-        render_target[pixel_index + 2] = (ray_intersect.colour.z + (render_target[pixel_index + 2] * sample_count)) / (sample_count + 1.0);
-        render_target[pixel_index + 3] = (ray_intersect.colour.w + (render_target[pixel_index + 3] * sample_count)) / (sample_count + 1.0);
+        var intensity = 1f;
+        var ray = pix_cam_to_rand_ray(ray_compute, vec2<u32>(global_id.x, global_id.y), camera, &seed);
+        var hit_info: HitInfo;
+        var ray_intersect: Intersection;
+        for (var bounce = 0u; bounce < 5u; bounce++) {
+            ray_intersect = get_ray_intersect(ray, &hit_info, &seed);
+            
+            // generate another ray to bounce off of 
+            if !ray_intersect.has_bounce{
+                // colour = vec4(hit_info.emissive, 1f);
+                colour = ray_intersect.colour;
+                break;
+            };
+
+            colour += vec4(hit_info.emissive, 1f) + ray_intersect.colour * intensity;
+            intensity *= hit_info.refl_ray.intensity;
+            
+
+
+        }
+        
         
         sample_count += 1.0;
     }
-
+    render_target[pixel_index]     = colour.x;//(colour.x + (render_target[pixel_index] * sample_count)) / (sample_count + 1.0);
+    render_target[pixel_index + 1] = colour.y;//(colour.y + (render_target[pixel_index + 1] * sample_count)) / (sample_count + 1.0);
+    render_target[pixel_index + 2] = colour.z;//(colour.z + (render_target[pixel_index + 2] * sample_count)) / (sample_count + 1.0);
+    render_target[pixel_index + 3] = 1f; //colour.w;//(colour.w + (render_target[pixel_index + 3] * sample_count)) / (sample_count + 1.0);
+}
 // Shader algorithm for now:
 
     // For loop for samps_per_pix
@@ -222,10 +244,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // let == immutable
     // var == mutable!!
-}
-
-// Pseudo-enum for element types
-
 
 fn get_pixel_index(x: u32, y: u32, width: u32) -> u32 {
     return 4 * (y * width + x);
@@ -287,7 +305,7 @@ fn pix_cam_raw_ray(compute: RayCompute, pixel: vec2<u32>, camera: Camera, rng: p
     return Ray(direction, camera.origin.xyz);
 }
 
-fn get_ray_intersect(ray: Ray) -> Intersection {
+fn get_ray_intersect(ray: Ray, hit_info: ptr<function, HitInfo>, rng: ptr<function, u32>) -> Intersection {
     // Initialize intersect struct
     var intersect = Intersection(vec4<f32>(0f, 0f, 0f, 0f), NONE, 0u, false, 0f);
     var closest_intersect = MAXF;
@@ -318,8 +336,8 @@ fn get_ray_intersect(ray: Ray) -> Intersection {
         // Just grey for now. Add intersection later
         intersect = Intersection(vec4<f32>(0.5f, 0.5f, 0.5f, 1f), CUBEMAP, 0u, false, MAXF);
     } else {
-        let hit_info = get_hit_info(ray, intersect);
-        // let new_ray = 
+        *hit_info = get_hit_info(ray, intersect, rng);
+        intersect.has_bounce = true;
     }
 
     return intersect;
@@ -355,26 +373,36 @@ fn get_sphere_intersect(ray: Ray, i: u32) -> f32 {
 }
 
 
-fn get_hit_info(ray: Ray, intersect: Intersection) -> HitInfo {
+fn get_hit_info(ray: Ray, intersect: Intersection, rng: ptr<function, u32>) -> HitInfo {
+    var refl_ray = RayRefl(ray, 1f);
     switch intersect.element_type {
-        case MESH: {return HitInfo(vec3(0f), vec3(0f), vec3(0f));}
+        case MESH: {return HitInfo(vec3(0f), vec3(0f), vec3(0f), refl_ray);}
 
         case SPHERE: {
             let perfect_pos = ray.origin + ray.direction * intersect.ray_distance;
             let norm = normalize(perfect_pos - spheres[intersect.element_idx].center.xyz);
 
             let pos = perfect_pos + norm * MIN_INTERSECT;
+            // var refl_ray: RayRefl;
+            switch spheres[intersect.element_idx].material.divert_ray_type {
+                case SPEC: {refl_ray = get_spec(ray, norm, pos);}
+                case DIFF: {refl_ray = get_diff(ray, norm, pos, rng);}
+                case DIFFSPEC: {}
+                case DIELECTRIC: {refl_ray = get_refract(ray, norm, pos, spheres[intersect.element_idx].material.n_in, spheres[intersect.element_idx].material.n_out, rng);}
+                default: {}
+            }
 
-            return HitInfo(spheres[intersect.element_idx].material.emissive, pos, norm);
+
+            return HitInfo(spheres[intersect.element_idx].material.emissive, pos, norm, refl_ray);
         }
 
-        default: {return HitInfo(vec3(0f), vec3(0f), vec3(0f));}
+        default: {return HitInfo(vec3(0f), vec3(0f), vec3(0f), refl_ray);}
     }
 }
 
 // Specular "mirror" reflection
 fn get_spec(ray: Ray, norm: vec3<f32>, hit_point: vec3<f32>) -> RayRefl {
-    let new_ray = Ray(normalize(ray.direction - norm * 2f * dot(ray.direction, norm)), vec3<f32>(0f));
+    let new_ray = Ray(normalize(ray.direction - norm * 2f * dot(ray.direction, norm)), ray.origin);
 
     return RayRefl(new_ray, 1f);
 }
