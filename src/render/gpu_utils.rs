@@ -290,39 +290,12 @@ impl ComputePipeline {
                 },
             ],
         });
-
-        // For render_target_buffer which gets written to
-        let second_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Compute Bind Group Layout 2"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
-        });
         
         // for mesh chunk header buffer, mesh header buffer, primitive buffer, mesh data buffers, mesh triangle buffer
-        let mut third_bind_group_layouts: Vec<wgpu::BindGroupLayoutEntry> = vec![];
+        let mut second_bind_group_layout: Vec<wgpu::BindGroupLayoutEntry> = vec![];
 
         for i in 0..(1 + 1 + 1 + GPU_NUM_MESH_BUFFERS + 1) {
-            third_bind_group_layouts.push(
+            second_bind_group_layout.push(
                 wgpu::BindGroupLayoutEntry {
                     binding: i as u32,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -335,13 +308,13 @@ impl ComputePipeline {
                 });
         }
 
-        let third_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        let second_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Compute Bind Group Layout 2"),
-            entries: &third_bind_group_layouts,
+            entries: &second_bind_group_layout,
         });
 
         // For free_triangle, sphere, distant cube map
-        let forth_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        let third_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Compute Bind Group Layout 3"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
@@ -387,6 +360,33 @@ impl ComputePipeline {
             ],
         });
 
+        // For render_target_buffer and iter, which get written to
+        let forth_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Compute Bind Group Layout 4"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
         // Create bind group
         let first_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Compute Bind Group 0"),
@@ -402,66 +402,50 @@ impl ComputePipeline {
                 },
             ],
         });
-
-        let second_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Compute Bind Group 1"),
-            layout: &second_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: render_target_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: iter_counter_buffer.as_entire_binding(),
-                },
-            ],
         
-        });
-        
-        let mut third_bind_group_entries: Vec<wgpu::BindGroupEntry> = vec![];
+        let mut second_bind_group_entries: Vec<wgpu::BindGroupEntry> = vec![];
 
-        third_bind_group_entries.push(
+        second_bind_group_entries.push(
             wgpu::BindGroupEntry {
-            binding: third_bind_group_entries.len() as u32,
+            binding: second_bind_group_entries.len() as u32,
             resource: mesh_chunk_header_buffer.as_entire_binding(),
         });
 
-        third_bind_group_entries.push(
+        second_bind_group_entries.push(
             wgpu::BindGroupEntry {
-            binding: third_bind_group_entries.len() as u32,
+            binding: second_bind_group_entries.len() as u32,
             resource: mesh_header_buffer.as_entire_binding(),
         });
         
-        third_bind_group_entries.push(
+        second_bind_group_entries.push(
             wgpu::BindGroupEntry {
-            binding: third_bind_group_entries.len() as u32,
+            binding: second_bind_group_entries.len() as u32,
             resource: primitive_header_buffer.as_entire_binding(),
         });
 
         for i in 0..GPU_NUM_MESH_BUFFERS {
-            third_bind_group_entries.push(
+            second_bind_group_entries.push(
                 wgpu::BindGroupEntry {
-                binding: third_bind_group_entries.len() as u32,
+                binding: second_bind_group_entries.len() as u32,
                 resource: mesh_data_buffers[i].as_entire_binding(),
             });
         }
 
-        third_bind_group_entries.push(
+        second_bind_group_entries.push(
             wgpu::BindGroupEntry {
-            binding: third_bind_group_entries.len() as u32,
+            binding: second_bind_group_entries.len() as u32,
             resource: mesh_triangle_buffer.as_entire_binding(),
+        });
+
+        let second_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Compute Bind Group 1"),
+            layout: &second_bind_group_layout,
+            entries: &second_bind_group_entries,
         });
 
         let third_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Compute Bind Group 2"),
             layout: &third_bind_group_layout,
-            entries: &third_bind_group_entries,
-        });
-
-        let forth_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Compute Bind Group 3"),
-            layout: &forth_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -482,6 +466,21 @@ impl ComputePipeline {
             ],
         });
 
+        let forth_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Compute Bind Group 3"),
+            layout: &forth_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: render_target_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: iter_counter_buffer.as_entire_binding(),
+                },
+            ],
+        
+        });
 
         let bind_groups = vec![first_bind_group, second_bind_group, third_bind_group, forth_bind_group];
         

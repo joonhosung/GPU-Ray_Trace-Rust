@@ -195,48 +195,48 @@ var<uniform> camera: Camera;
 @group(0) @binding(1)
 var<uniform> render_info: RenderInfo;
 
-// For better precision, each pixel is represented by 4 floats (RGBA)
 @group(1) @binding(0)
-var<storage, read_write> render_target: array<f32>;
-
-@group(1) @binding(1)
-var<storage, read_write> iter: Iter;
-
-@group(2) @binding(0)
 var<storage, read> mesh_chunk_headers: array<MeshChunkHeader>;
 
-@group(2) @binding(1)
+@group(1) @binding(1)
 var<storage, read> mesh_headers: array<MeshHeader>;
 
-@group(2) @binding(2)
+@group(1) @binding(2)
 var<storage, read> primitive_headers: array<PrimitiveHeader>;
 
-@group(2) @binding(3)
+@group(1) @binding(3)
 var<storage, read> mesh_data_chunk_0: array<f32>;
 
-@group(2) @binding(4)
+@group(1) @binding(4)
 var<storage, read> mesh_data_chunk_1: array<f32>;
 
-@group(2) @binding(5)
+@group(1) @binding(5)
 var<storage, read> mesh_data_chunk_2: array<f32>;
 
-@group(2) @binding(6)
+@group(1) @binding(6)
 var<storage, read> mesh_data_chunk_3: array<f32>;
 
-@group(2) @binding(7)
+@group(1) @binding(7)
 var<storage, read> mesh_triangles: array<MeshTriangle>;
 
-@group(3) @binding(0)
+@group(2) @binding(0)
 var<storage, read> spheres: array<Sphere>;
 
-@group(3) @binding(1)
+@group(2) @binding(1)
 var<storage, read> cube_map_headers: array<CubeMapFaceHeader>;
 
-@group(3) @binding(2)
+@group(2) @binding(2)
 var<storage, read> cube_map_faces: array<f32>;
 
-@group(3) @binding(3)
+@group(2) @binding(3)
 var<storage, read> free_triangles: array<FreeTriangle>;
+
+// For better precision, each pixel is represented by 4 floats (RGBA)
+@group(3) @binding(0)
+var<storage, read_write> render_target: array<f32>;
+
+@group(3) @binding(1)
+var<storage, read_write> iter: Iter;
 
 
 @compute @workgroup_size(8, 8, 1)
