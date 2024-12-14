@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use bytemuck;
+use crate::accel::PlaneBounds;
 use crate::elements::distant_cube_map::DistantCubeMap;
 use crate::elements::sphere::{Sphere, Coloring};
 use crate::material::{DivertRayMethod, UniformDiffuseSpec};
@@ -634,6 +635,16 @@ impl GPUMeshTriangle {
     }
 }
 
+#[repr(C)]
+#[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct GPUAabb {
+    pub bounds: [PlaneBounds; 3],
+    padding: [f32; 2],
+}
+
+
+
+assert_gpu_aligned!(GPUAabb);
 assert_gpu_aligned!(GPUCamera);
 assert_gpu_aligned!(GPURenderInfo);
 assert_gpu_aligned!(GPUUniformDiffuseSpec);

@@ -1,6 +1,7 @@
 
 use bytemuck;
 use wgpu::util::DeviceExt;
+use crate::accel::Aabb;
 use crate::elements::mesh;
 use crate::render::gpu_structs::GPUCubeMapFaceHeader;
 use crate::types::{GPUElements, GPU_NUM_MESH_BUFFERS};
@@ -17,7 +18,7 @@ use super::gpu_structs::{
     GPUSphere
 };
 use crate::elements::mesh::create_mesh_triangles_from_meshes;
-use super::{RenderInfo, RenderTarget};
+use super::RenderTarget;
 use pollster;
 use futures_channel;
 
@@ -224,6 +225,12 @@ impl ComputePipeline {
         });
         return (sphere_buffer, cube_map_headers_buffer, cube_map_data_buffer, free_triangle_buffer, mesh_triangle_buffer);
     }
+
+
+    fn create_aabb_buffer(device: &wgpu::Device, meshes: &Vec<mesh::Mesh>) {
+
+    }
+
 
     pub fn new(
         device: &wgpu::Device,
