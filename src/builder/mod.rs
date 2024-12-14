@@ -19,13 +19,14 @@ pub struct Scheme {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Anim {
-    framerate: Option<f32>,
+    // framerate: Option<f32>, // Would allow for individual framerates for each scene member
     keyframes: Vec<Keyframe>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Keyframe {
     translation: Vector3<f32>, // Same format as Model.translation
+    euler_angles: Option<Vector3<f32>>,
     ease_type: Option<String>, // TODO: Update to ease_type enum
     time: f32, //in seconds
 

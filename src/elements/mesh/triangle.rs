@@ -5,7 +5,6 @@ use super::Mesh;
 use std::ops::Index;
 use std::iter::zip;
 use crate::material::DynDiffSpec;
-
 pub type MeshTriangle<'a> = Triangle<VertexFromMesh<'a>, NormFromMesh<'a>, RgbFromMesh<'a>, DivertsRayFromMesh<'a>>;
 
 pub struct VertexFromMesh<'m> {

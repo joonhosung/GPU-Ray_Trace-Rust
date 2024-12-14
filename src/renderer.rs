@@ -53,7 +53,7 @@ impl Renderer {
                 let skene = Scene { cam: renderer_inner.scheme.cam.into(), members: renderer_inner.scheme.scene_members.into() };
                 render_to_target_cpu(&self.target, &skene, || self.update_output(), &self.scheme.render_info, &iter_progress);
                 let elapsed = start.elapsed();
-                println!("Total time elapsed: {:.3?} | Average time per iter: {:.3?}", elapsed, elapsed/self.scheme.render_info.samps_per_pix as u32);
+                // println!("Total time elapsed: {:.3?} | Average time per iter: {:.3?}", elapsed, elapsed/self.scheme.render_info.samps_per_pix as u32);
             }
             else {
                 let batch_size = self.scheme.render_info.gpu_render_batch.expect("gpu_render_batch needs to be set for GPU mode!");
@@ -72,7 +72,7 @@ impl Renderer {
             let batch_size = self.scheme.render_info.gpu_render_batch.expect("gpu_render_batch needs to be set for GPU mode!");
             if self.scheme.render_info.samps_per_pix % batch_size != 0 {panic!("Ensure samps_per_pix is divisble by gpu_render_batch!!")}
         }
-        
+
         let (region_width, region_height, render_info) = (self.scheme.render_info.width, self.scheme.render_info.height, self.scheme.render_info);
 
         // After extracting the locations of the each frame, render them
@@ -140,7 +140,7 @@ impl Renderer {
         let mut scenes:  Vec<VecInto<MemberTypes>> = Vec::new();
         let updated_locations = self.scheme.clone();
         
-        for member_frame in self.scheme.clone().scene_members.extract_anim(updated_locations.render_info.framerate.unwrap()) {
+        for member_frame in self.scheme.clone().scene_members.extract_anim(updated_locations.render_info.framerate.unwrap(), updated_locations.cam) {
             // println!("Extracted frame: {member_frame:?}");
             // let skene: Scene =  Scene { cam: updated_locations.clone().cam.into(), members: member_frame.into() };
             // scenes.push(skene);

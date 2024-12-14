@@ -2,6 +2,7 @@ render_info:
   width: 1200
   height: 600
   samps_per_pix: 1000
+  gpu_render_batch: 1000
   kd_tree_depth: 1
   rad_info:  
     debug_single_ray: false
@@ -18,7 +19,7 @@ cam:
   view_eulers: [0,0,0]
 
   lens_r: 0.03
-
+  lookat: [1.0, -5, -20.0]
   screen_width: 10.0
   screen_height: 5.0
 

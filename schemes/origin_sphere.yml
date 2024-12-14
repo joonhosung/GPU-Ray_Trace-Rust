@@ -1,8 +1,8 @@
 render_info:
-  width: 600
-  height: 1200
-  samps_per_pix: 10000
-  gpu_render_batch: 10000
+  width: 1200
+  height: 600
+  samps_per_pix: 1000
+  gpu_render_batch: 1000
   kd_tree_depth: 1
   rad_info:  
     debug_single_ray: false
@@ -11,20 +11,17 @@ render_info:
       assured_depth: 5
       max_thres: 0.5
   use_gpu: true
-  animation: true
-  framerate: 24
   
 cam:
-  d: [3, -1, -5]
-  o: [-9, 0, 3]
+  d: [5, 0, 0]
+  o: [10, 10, 10]
   up: [0, 1, 0]
   view_eulers: [0,0,0]
 
   lens_r: 0.03
-  lookat: [-3.0, 5.0, -7.0]
-  # follow: 1
-  screen_width: 5.0
-  screen_height: 10.0
+  lookat: [1.0, 1.0, -7.0]
+  screen_width: 10.0
+  screen_height: 5.0
 
 scene_members:
   #### skybox
@@ -47,44 +44,53 @@ scene_members:
   #         diffp: 0.9
 
   - !Sphere
-    c: [-3.0, 5.0, -7.0]
-    r: 1.0
+    c: [0.0, 0.0, 4.0]
+    r: 0.5
     coloring: !Solid [1.0, 1.0, 1.0]
     mat:
       divert_ray: Spec
-    animation:
-      keyframes:
-        - translation: [-3.0, 5.0, -7.0] #Start - Accelerate down
-          ease_type: "EaseInQuad"
-          time: 0 
-        - translation: [-3.0, -10.0, -7.0] # Decelerate up
-          ease_type: "EaseOutQuad"
-          time: 1 
-        - translation: [-3.0, 0.0, -7.0] # down
-          ease_type: "EaseInQuad"
-          time: 2
-        - translation: [-3.0, -10.0, -7.0] # up
-          ease_type: "EaseOutQuad"
-          time: 2.8 
-        - translation: [-3.0, -4.0, -7.0] # down
-          ease_type: "EaseInQuad"
-          time: 3.6 
-        - translation: [-3.0, -10.0, -7.0] # up
-          ease_type: "EaseOutQuad"
-          time: 4.2 
-        - translation: [-3.0, -7.0, -7.0] # down
-          ease_type: "EaseInQuad"
-          time: 4.8 
-        - translation: [-3.0, -10.0, -7.0] # up
-          ease_type: "EaseOutQuad"
-          time: 5.2 
-        - translation: [-3.0, -9.0, -7.0] # down
-          ease_type: "EaseInQuad"
-          time: 5.4 
-        - translation: [-3.0, -10.0, -7.0] # up
-          ease_type: "EaseOutQuad"
-          time: 5.6 
 
+  - !Sphere
+    c: [0.0, 0.0, -4.0]
+    r: 0.5
+    coloring: !Solid [0.0, 1.0, 0.0]
+    mat:
+      divert_ray: Spec
+
+  - !Sphere
+    c: [0.0, 4.0, 0.0]
+    r: 0.5
+    coloring: !Solid [0.0, 0.0, 1.0]
+    mat:
+      divert_ray: Diff
+  
+  - !Sphere
+    c: [0.0, -4.0, 0.0]
+    r: 0.5
+    coloring: !Solid [0.0, 0.0, 0.0]
+    mat:
+      divert_ray: Diff
+
+  - !Sphere
+    c: [4.0, 0.0, 0.0]
+    r: 0.5
+    coloring: !Solid [1.0, 0.0, 1.0]
+    mat:
+      divert_ray: 
+        !Dielectric
+          n_out: 1.0
+          n_in: 1.3
+  
+  - !Sphere
+    c: [-4.0, 0.0, 0.0]
+    r: 0.5
+    coloring: !Solid [0.0, 0.0, 1.0]
+    mat:
+      divert_ray: 
+        !Dielectric
+          n_out: 1.0
+          n_in: 1.3
+  
   # - !Sphere
   #   c: [1.0, -1.5, -6.0]
   #   r: 0.5
@@ -143,15 +149,15 @@ scene_members:
   #         n_in: 1.3
 
   #### lights
+  # - !Sphere
+  #   c: [0.0, 10.0, -15.0]
+  #   r: 5.0
+  #   coloring: !Solid [0.0,0.0,0.0]
+  #   mat:
+  #     divert_ray: Diff
+  #     emissive: [5.0, 5.0, 5.0]
   - !Sphere
-    c: [0.0, 50.0, -15.0]
-    r: 5.0
-    coloring: !Solid [0.0,0.0,0.0]
-    mat:
-      divert_ray: Diff
-      emissive: [5.0, 5.0, 5.0]
-  - !Sphere
-    c: [1.0, -10.0, -7.0]
+    c: [1.0, 1.0, -7.0]
     r: 0.4
     coloring: !Solid [1.0, 1.0, 1.0]
     mat:

@@ -647,9 +647,32 @@ pub struct GPUIter {
 #[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GPUAabb {
     pub bounds: [PlaneBounds; 3],
-    padding: [f32; 2],
+    pub padding: [f32; 2],
 }
 
+#[repr(C)]
+#[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct GPUKdTree {
+    pub aabb: GPUAabb, // AABB box of the entire KD tree. If not hit, that means no triangle to intersect
+    pub head: GPUTreeNode, // The head node of the KD tree
+    // padding: [f32; 2],
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct GPUTreeNode {
+    pub axis: u32, // The axis of this Node
+    pub split: f32, // The split coordinate of this tree node. Used for finding whether to go in low or high tree node
+    pub low: u32,  // Array index of lower Node. Acts like pointer
+    pub high: u32, // Array index of higher Node. Acts like pointer
+    pub is_leaf: u32, // Boolean value for whether this TreeNode is a leaf. If leaf, get intersections of mesh indices 
+    pub leaf_mesh_index: u32, // Offset of triangle mesh indices array
+    pub leaf_mesh_size: u32, // Number of triangle mesh indices within the leaf node
+    pub _padding: f32,
+}
+
+assert_gpu_aligned!(GPUTreeNode);
+assert_gpu_aligned!(GPUKdTree);
 assert_gpu_aligned!(GPUCamera);
 assert_gpu_aligned!(GPURenderInfo);
 assert_gpu_aligned!(GPUUniformDiffuseSpec);

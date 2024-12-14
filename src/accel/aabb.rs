@@ -1,11 +1,14 @@
 use crate::ray::Ray;
 use std::iter::zip;
 use nalgebra::Vector3;
+use serde::Deserialize;
 
 pub struct Aabb {
     pub bounds: [PlaneBounds; 3],
 }
 
+#[repr(C)]
+#[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct PlaneBounds {
     pub low: f32, 
     pub high: f32,
@@ -50,7 +53,7 @@ impl Aabb {
         let (min_a, min_d) = min_axis;
         let (max_a, max_d) = max_axis;
 
-        if max_d < 0.0 || min_d > max_d {
+        if max_d < 0.0 || min_d > max_d { // Doesn't intersect
             None
         } else {
             Some(((*min_a, min_d), (*max_a, max_d)))

@@ -7,11 +7,13 @@ use crate::scene::Member;
 use crate::elements::distant_cube_map;
 use crate::elements::triangle;
 use super::pr;
+use super::pr::Cam;
 use keyframe::{Keyframe, AnimationSequence};
 use nalgebra::Vector3;
 // use keyframe::mint::Vector3;
 use keyframe::mint::Point3;
 use MemberTypes::*;
+use nalgebra_glm::look_at;
 
 
 #[derive(Deserialize, Debug, Clone)]
@@ -109,7 +111,7 @@ impl VecInto<MemberTypes> {
     }
 
     // Extract all the locations of the members for each frame
-    pub fn extract_anim(self: VecInto<MemberTypes>, framerate: f32) -> Vec<VecInto<MemberTypes>> {
+    pub fn extract_anim(self: VecInto<MemberTypes>, framerate: f32, cam: Cam) -> Vec<VecInto<MemberTypes>> {
         
         let max_time: f64 = self.get_last_timestamp() as f64;
         let time_per_frame: f64 = 1.0 / framerate as f64;
@@ -120,7 +122,7 @@ impl VecInto<MemberTypes> {
             frames.push(VecInto::<MemberTypes>{0: Vec::<MemberTypes>::new()});
         }
 
-        println!("Extracting frames: \n\t Number of frames: {number_of_frames}\n\t Frame vec size: {}\n\t Time per frame {time_per_frame}\n\t Total time: {max_time}s", frames.len());
+        println!("Extracting frames: \n\t Number of frames: {number_of_frames}\n\t Frame vec size: {}\n\t Time per frame {time_per_frame:.4?}\n\t Total time: {max_time}s", frames.len());
         self.0.iter().for_each(|m| {            
             match m {
                 // Infer the locations of Sphere and Model translations for each frame
@@ -133,10 +135,10 @@ impl VecInto<MemberTypes> {
                             let mut sequence = AnimationSequence::<Point3<f32>>::new();
                             for frame in &anim.keyframes {
                                 
-                                let convert: Point3<f32> = Point3{x: frame.translation.x, y: frame.translation.y, z: frame.translation.z};
+                                let translation: Point3<f32> = Point3{x: frame.translation.x, y: frame.translation.y, z: frame.translation.z};
                                 // s.clone().c
-                                sequence.insert(Keyframe::new_dynamic(convert, frame.time, frame.get_ease_type()))
-                                    .expect("Something happened while generating keyframe sequence!!");
+                                sequence.insert(Keyframe::new_dynamic(translation, frame.time, frame.get_ease_type()))
+                                    .expect("Something happened while generating keyframe sequence for translation!!");
                             }
 
                             for i in 0..number_of_frames{
@@ -160,22 +162,32 @@ impl VecInto<MemberTypes> {
                             // let hi = anim.keyframes[0].translation.x;
                             
 
-                            let mut sequence = AnimationSequence::<Point3<f32>>::new();
+                            let mut sequence_trans = AnimationSequence::<Point3<f32>>::new();
+                            let mut sequence_angle = AnimationSequence::<Point3<f32>>::new();
+                            
                             for frame in &anim.keyframes {
                                 
-                                let convert: Point3<f32> = Point3{x: frame.translation.x, y: frame.translation.y, z: frame.translation.z};
+                                let translation: Point3<f32> = Point3{x: frame.translation.x, y: frame.translation.y, z: frame.translation.z};
+                                let angle: Point3<f32> = Point3{x: frame.euler_angles.unwrap().x, y: frame.euler_angles.unwrap().y, z: frame.euler_angles.unwrap().z};
+
                                 // s.clone().c
-                                sequence.insert(Keyframe::new_dynamic(convert, frame.time, frame.get_ease_type()))
-                                    .expect("Something happened while generating keyframe sequence!!");
+                                sequence_trans.insert(Keyframe::new_dynamic(translation, frame.time, frame.get_ease_type()))
+                                    .expect("Something happened while generating keyframe sequence for translation!!");
+                                sequence_angle.insert(Keyframe::new_dynamic(angle, frame.time, frame.get_ease_type()))
+                                    .expect("Something happened while generating keyframe sequence for angle!!");
                             }
 
 
                             for i in 0..number_of_frames{
                                 let mut frame_to_insert = m.clone();
-                                let (x, y, z) = (sequence.now_strict().unwrap().x, sequence.now_strict().unwrap().y, sequence.now_strict().unwrap().z);
+                                let (x, y, z) = (sequence_trans.now_strict().unwrap().x, sequence_trans.now_strict().unwrap().y, sequence_trans.now_strict().unwrap().z);
+                                let (u, v, w) = (sequence_angle.now_strict().unwrap().x, sequence_angle.now_strict().unwrap().y, sequence_angle.now_strict().unwrap().z);
                                 frame_to_insert.translation = Vector3::new(x, y, z);
+                                frame_to_insert.euler_angles = [u, v, w];
+
                                 frames[i].0.push(MemberTypes::Model(frame_to_insert));
-                                sequence.advance_by(time_per_frame);
+                                sequence_trans.advance_by(time_per_frame);
+                                sequence_angle.advance_by(time_per_frame);
                             } 
                         }, 
                         None => {
@@ -200,11 +212,6 @@ impl VecInto<MemberTypes> {
                 }, 
             }
         });
-
-
-        
-
-        
 
         frames
     }
