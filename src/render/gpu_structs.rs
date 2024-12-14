@@ -648,7 +648,7 @@ pub struct GPUIter {
 pub struct GPUAabb {
     pub bounds: [PlaneBounds; 3],
     padding: [f32; 2],
-}\
+}
 
 assert_gpu_aligned!(GPUCamera);
 assert_gpu_aligned!(GPURenderInfo);
