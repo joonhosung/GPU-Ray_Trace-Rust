@@ -2,8 +2,9 @@
 use bytemuck;
 use wgpu::util::DeviceExt;
 use crate::accel::Aabb;
-use crate::elements::mesh;
-use crate::render::gpu_structs::GPUCubeMapFaceHeader;
+use crate::elements::mesh::{self, MeshTriangle};
+use crate::ray::Hitable;
+use crate::render::gpu_structs::{GPUAabb, GPUCubeMapFaceHeader};
 use crate::types::{GPUElements, GPU_NUM_MESH_BUFFERS};
 use super::gpu_structs::{
     GPUCamera, 
@@ -181,6 +182,8 @@ impl ComputePipeline {
             free_triangle_data.push(gpu_free_triangle);
         }
         let mesh_triangles = create_mesh_triangles_from_meshes(meshes);
+        let index_with_aabb: Vec<(usize, GPUAabb)> = GPUAabb::get_aabb_meshes(&mesh_triangles);
+
         for mesh_triangle in mesh_triangles {
             let gpu_mesh_triangle = GPUMeshTriangle::from_mesh_triangle(&mesh_triangle);
             mesh_triangle_data.push(gpu_mesh_triangle);

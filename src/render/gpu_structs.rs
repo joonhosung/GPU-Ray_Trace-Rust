@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use serde::Deserialize;
 use bytemuck;
 use crate::accel::PlaneBounds;
@@ -6,6 +8,7 @@ use crate::elements::sphere::{Sphere, Coloring};
 use crate::material::{DivertRayMethod, UniformDiffuseSpec};
 use crate::elements::triangle::FreeTriangle;
 use crate::elements::mesh::{Mesh, MeshTriangle};
+use crate::ray::Hitable;
 use crate::scene::Cam;
 use super::RenderInfo;
 use static_assertions;
@@ -646,8 +649,26 @@ pub struct GPUIter {
 #[repr(C)]
 #[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GPUAabb {
+    // aabb bounding box of whatever object. Only used for GPUKdTree for now.
     pub bounds: [PlaneBounds; 3],
     pub padding: [f32; 2],
+}
+
+impl GPUAabb {
+    pub fn new(bounds: [PlaneBounds; 3]) -> Self {
+        Self {
+            bounds,
+            padding: [0.0; 2],
+        }
+    }
+    
+    pub fn get_aabb_meshes(meshes: &Vec<MeshTriangle>) -> Vec<(usize, GPUAabb)> {
+        let index_with_aabb: Vec<(usize, GPUAabb)> = meshes.iter().enumerate().filter_map(|(i, tri)| tri.give_aabb().map(|aabb| (i, GPUAabb::new(aabb.bounds)))).collect();
+
+        index_with_aabb
+
+        // meshes.iter().next().unwrap().give_aabb()
+    }
 }
 
 #[repr(C)]
@@ -673,6 +694,7 @@ pub struct GPUTreeNode {
 
 assert_gpu_aligned!(GPUTreeNode);
 assert_gpu_aligned!(GPUKdTree);
+assert_gpu_aligned!(GPUAabb);
 assert_gpu_aligned!(GPUCamera);
 assert_gpu_aligned!(GPURenderInfo);
 assert_gpu_aligned!(GPUUniformDiffuseSpec);
