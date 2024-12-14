@@ -168,7 +168,8 @@ impl GimmeRgb for RgbFromMesh<'_> {
         match &self.mesh.rgb_info[prim_idx].coords {
             Some(tex_coords) => {
                 let tex_coord = tex_coord_from_bary(self.mesh, &tex_coords, barycentric, self.index);
-                self.mesh.rgb_info[prim_idx].factor.component_mul(&self.mesh.textures[prim_idx].as_ref().expect("no textures???").get_pixel(tex_coord.x, tex_coord.y))
+                let pixel = self.mesh.textures[prim_idx].as_ref().expect("no textures???").get_pixel(tex_coord.x, tex_coord.y);
+                self.mesh.rgb_info[prim_idx].factor.component_mul(&pixel)
             },
             None => self.mesh.rgb_info[prim_idx].factor,
         }
