@@ -382,12 +382,19 @@ fn get_ray_intersect(ray: Ray, hit_info: ptr<function, HitInfo>, rng: ptr<functi
     }
 
     if (contains_valid_mesh_triangles()) {
+        var closest_mesh_triangle = -1;
+        var hit_result = TriangleHitResult(-1f, vec2<f32>(-1f, -1f));
         for (var i = 0u; i < arrayLength(&mesh_triangles); i++) {
-            let hit_result = get_mesh_triangle_intersect(ray, i);
+            hit_result = get_mesh_triangle_intersect(ray, i);
             if hit_result.l != -1f && hit_result.l < closest_intersect {
                 closest_intersect = hit_result.l;
-                intersect = Intersection(vec4<f32>(1f, 0f, 0f, 1f), MESHTRIANGLE, i, false, hit_result.l);
+                closest_mesh_triangle = i32(i);  
             }
+        }
+        if closest_mesh_triangle != -1 {
+            let mesh_triangle = mesh_triangles[u32(closest_mesh_triangle)];
+            let rgba = get_rgba_for_mesh_triangle(mesh_triangle, hit_result.barycentric);
+            intersect = Intersection(rgba, MESHTRIANGLE, u32(closest_mesh_triangle), false, hit_result.l);
         }
     }
     
@@ -657,6 +664,193 @@ fn get_vertex_for_mesh_triangle(mesh_triangle: MeshTriangle, vert_id: u32) -> ve
         );
     }
     return vec3<f32>(0.0, 0.0, 0.0);
+}
+
+fn tex_coord_from_bary(mesh_triangle: MeshTriangle, coords_offset: u32, barycentric: vec2<f32>) -> vec2<f32> {
+    let mesh_id = mesh_triangle.mesh_index;
+    let prim_id = mesh_triangle.prim_index;
+    let inner_id = mesh_triangle.inner_index;
+    let mesh_header = mesh_headers[mesh_id];
+    let prim_header = primitive_headers[mesh_header.primitive_header_offset + prim_id];
+    let data_offset = mesh_header.data_offset + prim_header.mesh_data_offset;
+    let triangle_offset = data_offset + prim_header.triangle_offset;
+
+    let b1 = barycentric.x;
+    let b2 = barycentric.y;
+    let b0 = 1.0 - b1 - b2;
+
+    if mesh_header.chunk_id == 0 {
+        let idx0 = mesh_data_chunk_0[triangle_offset + inner_id * 3];
+        let idx1 = mesh_data_chunk_0[triangle_offset + inner_id * 3 + 1u];
+        let idx2 = mesh_data_chunk_0[triangle_offset + inner_id * 3 + 2u];
+
+        let uv0 = vec2<f32>(
+            mesh_data_chunk_0[coords_offset + u32(idx0) * 2],
+            mesh_data_chunk_0[coords_offset + u32(idx0) * 2 + 1u],
+        );
+        let uv1 = vec2<f32>(
+            mesh_data_chunk_0[coords_offset + u32(idx1) * 2],
+            mesh_data_chunk_0[coords_offset + u32(idx1) * 2 + 1u],
+        );
+        let uv2 = vec2<f32>(
+            mesh_data_chunk_0[coords_offset + u32(idx2) * 2],
+            mesh_data_chunk_0[coords_offset + u32(idx2) * 2 + 1u],
+        );
+
+        return uv0 * b0 + uv1 * b1 + uv2 * b2;
+    }
+    else if mesh_header.chunk_id == 1 {
+        let idx0 = mesh_data_chunk_1[triangle_offset + inner_id * 3];
+        let idx1 = mesh_data_chunk_1[triangle_offset + inner_id * 3 + 1u];
+        let idx2 = mesh_data_chunk_1[triangle_offset + inner_id * 3 + 2u];
+
+        let uv0 = vec2<f32>(
+            mesh_data_chunk_1[coords_offset + u32(idx0) * 2],
+            mesh_data_chunk_1[coords_offset + u32(idx0) * 2 + 1u],
+        );
+        let uv1 = vec2<f32>(
+            mesh_data_chunk_1[coords_offset + u32(idx1) * 2],
+            mesh_data_chunk_1[coords_offset + u32(idx1) * 2 + 1u],
+        );
+        let uv2 = vec2<f32>(
+            mesh_data_chunk_1[coords_offset + u32(idx2) * 2],
+            mesh_data_chunk_1[coords_offset + u32(idx2) * 2 + 1u],
+        );
+
+        return uv0 * b0 + uv1 * b1 + uv2 * b2;
+    }
+    else if mesh_header.chunk_id == 2 {
+        let idx0 = mesh_data_chunk_2[triangle_offset + inner_id * 3];
+        let idx1 = mesh_data_chunk_2[triangle_offset + inner_id * 3 + 1u];
+        let idx2 = mesh_data_chunk_2[triangle_offset + inner_id * 3 + 2u];
+
+        let uv0 = vec2<f32>(
+            mesh_data_chunk_2[coords_offset + u32(idx0) * 2],
+            mesh_data_chunk_2[coords_offset + u32(idx0) * 2 + 1u],
+        );
+        let uv1 = vec2<f32>(
+            mesh_data_chunk_2[coords_offset + u32(idx1) * 2],
+            mesh_data_chunk_2[coords_offset + u32(idx1) * 2 + 1u],
+        );
+        let uv2 = vec2<f32>(
+            mesh_data_chunk_2[coords_offset + u32(idx2) * 2],
+            mesh_data_chunk_2[coords_offset + u32(idx2) * 2 + 1u],
+        );
+
+        return uv0 * b0 + uv1 * b1 + uv2 * b2;
+    }
+    else if mesh_header.chunk_id == 3 {
+        let idx0 = mesh_data_chunk_3[triangle_offset + inner_id * 3];
+        let idx1 = mesh_data_chunk_3[triangle_offset + inner_id * 3 + 1u];
+        let idx2 = mesh_data_chunk_3[triangle_offset + inner_id * 3 + 2u];
+
+        let uv0 = vec2<f32>(
+            mesh_data_chunk_3[coords_offset + u32(idx0) * 2],
+            mesh_data_chunk_3[coords_offset + u32(idx0) * 2 + 1u],
+        );
+        let uv1 = vec2<f32>(
+            mesh_data_chunk_3[coords_offset + u32(idx1) * 2],
+            mesh_data_chunk_3[coords_offset + u32(idx1) * 2 + 1u],
+        );
+        let uv2 = vec2<f32>(
+            mesh_data_chunk_3[coords_offset + u32(idx2) * 2],
+            mesh_data_chunk_3[coords_offset + u32(idx2) * 2 + 1u],
+        );
+
+        return uv0 * b0 + uv1 * b1 + uv2 * b2;
+    }
+    return vec2<f32>(0.0, 0.0);
+}
+
+fn get_rgb_factor_for_mesh_triangle(mesh_triangle: MeshTriangle) -> vec3<f32> {
+    let mesh_id = mesh_triangle.mesh_index;
+    let prim_id = mesh_triangle.prim_index;
+    let inner_id = mesh_triangle.inner_index;
+    let mesh_header = mesh_headers[mesh_id];
+    let prim_header = primitive_headers[mesh_header.primitive_header_offset + prim_id];
+    let data_offset = mesh_header.data_offset + prim_header.mesh_data_offset;
+    let rgb_info_factor_offset = data_offset + prim_header.rgb_info_factor_offset;
+    if mesh_header.chunk_id == 0 {
+        return vec3<f32>(
+            mesh_data_chunk_0[rgb_info_factor_offset],
+            mesh_data_chunk_0[rgb_info_factor_offset + 1u],
+            mesh_data_chunk_0[rgb_info_factor_offset + 2u],
+        );
+    }
+    else if mesh_header.chunk_id == 1 {
+        return vec3<f32>(
+            mesh_data_chunk_1[rgb_info_factor_offset],
+            mesh_data_chunk_1[rgb_info_factor_offset + 1u],
+            mesh_data_chunk_1[rgb_info_factor_offset + 2u],
+        );
+    }
+    else if mesh_header.chunk_id == 2 {
+        return vec3<f32>(
+            mesh_data_chunk_2[rgb_info_factor_offset],
+            mesh_data_chunk_2[rgb_info_factor_offset + 1u],
+            mesh_data_chunk_2[rgb_info_factor_offset + 2u],
+        );
+    }
+    else if mesh_header.chunk_id == 3 {
+        return vec3<f32>(
+            mesh_data_chunk_3[rgb_info_factor_offset],
+            mesh_data_chunk_3[rgb_info_factor_offset + 1u],
+            mesh_data_chunk_3[rgb_info_factor_offset + 2u],
+        );
+    }
+    return vec3<f32>(0.0, 0.0, 0.0);
+}
+
+fn get_rgba_for_mesh_triangle(mesh_triangle: MeshTriangle, barycentric: vec2<f32>) -> vec4<f32> {
+    let mesh_id = mesh_triangle.mesh_index;
+    let prim_id = mesh_triangle.prim_index;
+    let inner_id = mesh_triangle.inner_index;
+    let mesh_header = mesh_headers[mesh_id];
+    let prim_header = primitive_headers[mesh_header.primitive_header_offset + prim_id];
+    let rgb_info_factor = get_rgb_factor_for_mesh_triangle(mesh_triangle);
+    if prim_header.rgb_info_coords_count == 0u {
+        return vec4<f32>(rgb_info_factor, 0);
+    }
+
+    let data_offset = mesh_header.data_offset + prim_header.mesh_data_offset;
+    let rgb_info_coords_offset = data_offset + prim_header.rgb_info_coords_offset;
+    let tex_coord = tex_coord_from_bary(mesh_triangle, rgb_info_coords_offset, barycentric);
+    let texture_offset = data_offset + prim_header.texture_data_offset;
+    let texture_width = prim_header.texture_data_width;
+    var pixel = vec3<f32>(0.0, 0.0, 0.0);
+    let pixel_x = u32(trunc(clamp(tex_coord.x * f32(texture_width), 0.0, f32(texture_width - 1u))));
+    let pixel_y = u32(trunc(clamp(tex_coord.y * f32(texture_width), 0.0, f32(texture_width - 1u))));
+    let pixel_index = texture_offset + 3u * (pixel_x + pixel_y * texture_width);
+    if mesh_header.chunk_id == 0 {
+        pixel = vec3<f32>(
+            mesh_data_chunk_0[pixel_index],
+            mesh_data_chunk_0[pixel_index + 1u],
+            mesh_data_chunk_0[pixel_index + 2u],
+        );
+    }
+    else if mesh_header.chunk_id == 1 {
+        pixel = vec3<f32>(
+            mesh_data_chunk_1[pixel_index],
+            mesh_data_chunk_1[pixel_index + 1u],
+            mesh_data_chunk_1[pixel_index + 2u],
+        );
+    }
+    else if mesh_header.chunk_id == 2 {
+        pixel = vec3<f32>(
+            mesh_data_chunk_2[pixel_index],
+            mesh_data_chunk_2[pixel_index + 1u],
+            mesh_data_chunk_2[pixel_index + 2u],
+        );
+    }
+    else if mesh_header.chunk_id == 3 {
+        pixel = vec3<f32>(
+            mesh_data_chunk_3[pixel_index],
+            mesh_data_chunk_3[pixel_index + 1u],
+            mesh_data_chunk_3[pixel_index + 2u],
+        );
+    }
+    let scaled_rgb = pixel * rgb_info_factor;
+    return vec4<f32>(scaled_rgb, 0);
 }
 
 fn get_mesh_triangle_intersect(ray: Ray, i: u32) -> TriangleHitResult {
