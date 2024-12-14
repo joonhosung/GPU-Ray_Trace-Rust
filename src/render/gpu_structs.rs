@@ -409,7 +409,7 @@ impl GPUPrimitiveHeader {
 pub struct GPUPrimitiveData {
     pub positions: Vec<[f32; 3]>,
     pub norms: Vec<[f32; 3]>,
-    pub triangles: Vec<[u32; 3]>,
+    pub triangles: Vec<[f32; 3]>,
 
     pub rgb_info_factor: [f32; 3],
     pub rgb_info_coords: Option<Vec<[f32; 2]>>,
@@ -496,8 +496,8 @@ pub struct GPUMeshHeader {
     pub chunk_id: u32,
     // offset to the start of the mesh data in the chunk buffer
     pub data_offset: u32,
-    pub primitive_header_offset: u32,
     pub _padding: [u32; 3],
+    pub primitive_header_offset: u32,
     pub trans_mat: [f32; 16],
 }
 
@@ -533,7 +533,7 @@ impl GPUMeshData {
             let primitive_data_f32 = GPUPrimitiveData {
                 positions: mesh.poses[i].iter().map(|v| [v.x, v.y, v.z]).collect(),
                 norms: mesh.norms[i].iter().map(|v| [v.x, v.y, v.z]).collect(),
-                triangles: mesh.indices[i].iter().map(|v| [v[0] as u32, v[1] as u32, v[2] as u32]).collect(),
+                triangles: mesh.indices[i].iter().map(|v| [v[0] as f32, v[1] as f32, v[2] as f32]).collect(),
                 rgb_info_factor: mesh.rgb_info[i].factor.into(),
                 rgb_info_coords: mesh.rgb_info[i].coords.as_ref().map(|v| v.iter().map(|v| [v.x, v.y]).collect()),
                 norm_info_scale: mesh.norm_info[i].as_ref().map(|v| v.scale),
@@ -634,12 +634,23 @@ impl GPUMeshTriangle {
     }
 }
 
+
+#[repr(C)]
+#[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct GPUIter {
+    pub _padding: [u32; 3],
+    pub ation: u32,
+}
+
+
 assert_gpu_aligned!(GPUCamera);
 assert_gpu_aligned!(GPURenderInfo);
 assert_gpu_aligned!(GPUUniformDiffuseSpec);
 assert_gpu_aligned!(GPUFreeTriangle);
 assert_gpu_aligned!(GPUSphere);
 assert_gpu_aligned!(GPUCubeMapFaceHeader);
+assert_gpu_aligned!(GPUMeshChunkHeader);
 assert_gpu_aligned!(GPUMeshHeader);
 assert_gpu_aligned!(GPUPrimitiveHeader);
 assert_gpu_aligned!(GPUMeshTriangle);
+assert_gpu_aligned!(GPUIter);
