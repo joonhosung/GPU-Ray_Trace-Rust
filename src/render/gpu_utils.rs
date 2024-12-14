@@ -15,7 +15,8 @@ use super::gpu_structs::{
     GPUMeshHeader, 
     GPUPrimitiveHeader, 
     GPURenderInfo, 
-    GPUSphere
+    GPUSphere,
+    GPUIter,
 };
 use crate::elements::mesh::create_mesh_triangles_from_meshes;
 use super::RenderTarget;
@@ -45,6 +46,7 @@ struct ComputePipeline {
     _cube_map_headers_buffer: wgpu::Buffer,
     _cube_map_data_buffer: wgpu::Buffer,
     _free_triangle_buffer: wgpu::Buffer,
+    _iter_counter_buffer: wgpu::Buffer,
 }
 
 impl ComputePipeline {
@@ -75,9 +77,10 @@ impl ComputePipeline {
     }
 
     fn create_iter_count_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+        let iteration = GPUIter { _padding: [0; 3], ation: 0 };
         device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Interation count buffer for RNG"),
-            contents: bytemuck::bytes_of(&(0 as u64)),
+            contents: bytemuck::bytes_of(&iteration),
             usage: wgpu::BufferUsages::STORAGE,
         })
     }
@@ -290,7 +293,17 @@ impl ComputePipeline {
             label: Some("Compute Bind Group Layout 2"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
-                    binding: 0,  // Note: This is now binding 0 in the new group
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -368,16 +381,6 @@ impl ComputePipeline {
                     },
                     count: None,
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
             ],
         });
 
@@ -405,7 +408,12 @@ impl ComputePipeline {
                     binding: 0,
                     resource: render_target_buffer.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: iter_counter_buffer.as_entire_binding(),
+                },
             ],
+        
         });
         
         let mut third_bind_group_entries: Vec<wgpu::BindGroupEntry> = vec![];
@@ -468,10 +476,6 @@ impl ComputePipeline {
                     binding: 3,
                     resource: free_triangle_buffer.as_entire_binding(),
                 },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: iter_counter_buffer.as_entire_binding(),
-                },
             ],
         });
 
@@ -518,6 +522,7 @@ impl ComputePipeline {
             _cube_map_headers_buffer: cube_map_headers_buffer,
             _cube_map_data_buffer: cube_map_data_buffer,
             _free_triangle_buffer: free_triangle_buffer,
+            _iter_counter_buffer: iter_counter_buffer,
         }
     }
 
