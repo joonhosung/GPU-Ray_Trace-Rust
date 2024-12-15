@@ -210,12 +210,11 @@ struct TreeNode {
     padding: f32,
 }
 
-// struct AabbEntryExit {
-//     entry_axis: u32,
-//     entry_t: f32,
-//     exit_axis: u32,
-//     exit_t: f32,
-// }
+struct AabbEntryExit {
+    entry_t: f32,
+    exit_t: f32,
+    intersects: bool,
+}
 
 @group(0) @binding(0)
 var<uniform> camera: Camera;
@@ -260,7 +259,7 @@ var<storage, read> cube_map_faces: array<f32>;
 var<storage, read> free_triangles: array<FreeTriangle>;
 
 @group(2) @binding(4)
-var<storage, read> leaf_nodes: array<u32>;
+var<storage, read> leaf_node_triangles: array<u32>;
 
 @group(2) @binding(5)
 var<storage, read> tree_nodes: array<TreeNode>;
@@ -419,21 +418,33 @@ fn get_ray_intersect(ray: Ray, hit_info: ptr<function, HitInfo>, rng: ptr<functi
         }
     }
 
-    if (contains_valid_mesh_triangles() && get_entry_exit(ray, kd_tree)) {
-        var closest_mesh_triangle = -1;
-        var hit_result = TriangleHitResult(-1f, vec2<f32>(-1f, -1f));
-        for (var i = 0u; i < arrayLength(&mesh_triangles); i++) {
-            hit_result = get_mesh_triangle_intersect(ray, i);
-            if hit_result.l != -1f && hit_result.l < closest_intersect {
-                closest_intersect = hit_result.l;
-                closest_mesh_triangle = i32(i);  
+    if (contains_valid_mesh_triangles()) {
+        let entry_exit: AabbEntryExit = get_entry_exit(ray, kd_tree);
+
+        // If we know the ray will go into the tree, search it
+        // Still bottlenecked by the slowest ray, but the slowest ray is WAY faster
+        if entry_exit.intersects {
+            // let leaf_node: TreeNode = search_kd_tree(ray, entry_exit.x, entry_exit.y);                
+            
+            var closest_mesh_triangle = -1;
+            var hit_result = TriangleHitResult(-1f, vec2<f32>(-1f, -1f));
+            for (var i = 0u; i < leaf_node.leaf_mesh_size; i++) {
+            // for (var i = 0u; i < arrayLength(&mesh_triangles); i++) {
+            
+                // Retrieve the MeshTriangle array indices using the leaf_node_triangles so we only iterate based on a limited number of triangles
+                // hit_result = get_mesh_triangle_intersect(ray, i); 
+                hit_result = get_mesh_triangle_intersect(ray, leaf_node_triangles[leaf_node.leaf_mesh_index+1]); 
+                if hit_result.l != -1f && hit_result.l < closest_intersect {
+                    closest_intersect = hit_result.l;
+                    closest_mesh_triangle = i32(i);  
+                }
             }
-        }
-        if closest_mesh_triangle != -1 {
-            let mesh_triangle = mesh_triangles[u32(closest_mesh_triangle)];
-            let rgba = get_rgba_for_mesh_triangle(mesh_triangle, hit_result.barycentric);
-            barycentric = hit_result.barycentric;
-            intersect = Intersection(rgba, MESHTRIANGLE, u32(closest_mesh_triangle), false, hit_result.l);
+            if closest_mesh_triangle != -1 {
+                let mesh_triangle = mesh_triangles[u32(closest_mesh_triangle)];
+                let rgba = get_rgba_for_mesh_triangle(mesh_triangle, hit_result.barycentric);
+                barycentric = hit_result.barycentric;
+                intersect = Intersection(rgba, MESHTRIANGLE, u32(closest_mesh_triangle), false, hit_result.l);
+            }
         }
     }
     
@@ -671,8 +682,8 @@ fn get_free_triangle_intersect(ray: Ray, i: u32) -> TriangleHitResult {
 ///////////////////////////////
 // KD Tree functions
 ///////////////////////////////
-fn get_entry_exit(ray: Ray, aabb: Aabb) -> bool {
-    var global_min_t: vec2<f32> = vec2(MAXF, -MAXF);
+fn get_entry_exit(ray: Ray, aabb: Aabb) -> AabbEntryExit {
+    var entry_exit_points: AabbEntryExit = AabbEntryExit( MAXF, -MAXF, false);
     for (var i=0; i<3; i++) {
         var ray_dir: f32;
         if abs(ray.direction[i]) < MIN_INTERSECT {
@@ -683,14 +694,43 @@ fn get_entry_exit(ray: Ray, aabb: Aabb) -> bool {
         let min_t = min((aabb.bounds[i].x - ray.origin[i]) / ray.direction[i], (aabb.bounds[i].y - ray.origin[i]) / ray.direction[i]);
         let max_t = max((aabb.bounds[i].x - ray.origin[i]) / ray.direction[i], (aabb.bounds[i].y - ray.origin[i]) / ray.direction[i]);
 
-        if (max_t <= min_t) {return false;}//vec2(MAXF, MAXF);}
-        else {global_min_t= vec2(min_t, max_t);}
+        // MAXF, MAXF should be impossible. Use to denote no intersection found
+        if (min_t >= max_t) || (max_t < 0.0) {
+            entry_exit_points.intersects = false;
+            return entry_exit_points;
+        }
+        else {
+            entry_exit_points.entry_t = min(min_t, entry_exit_points.entry_t);
+            entry_exit_points.exit_t = max(max_t, entry_exit_points.exit_t);
+        }
     }
-
-    return true;//min(min(), min());
+    entry_exit_points.intersects = true;
+    return entry_exit_points; // return earliest entry point and latest exit point
 }
 
-// fn 
+fn search_kd_tree(ray: Ray, entry_t: f32, exit_t: f32) -> TreeNode {
+    var cur_node = tree_nodes[0]; // Index 0 is always the head node
+    var cur_entry = entry_t;
+    var cur_exit = exit_t;
+    var ray_dir = ray.direction;
+
+    // Fix ray direction edge cases for each axis
+    for (var i=0; i<3; i++) {
+        if abs(ray.direction[i]) < MIN_INTERSECT {
+            if ray.direction[i] < 0 {ray_dir[i] = -MIN_INTERSECT;}
+            else {ray_dir[i] = MIN_INTERSECT;}
+        } else {ray_dir[i] = ray.direction[i];}
+    }
+
+    // Search through the tree until we find a leaf node containing all the indices
+    // while cur_node.is_leaf == 0u {
+    //     let a = cur_node.axis;
+    //     let t = (cur_node.split - ray.origin[a]) / ray_dir[a];
+
+    // }
+
+    return cur_node;
+}
 
 ///////////////////////////////
 // Mesh Triangle functions
