@@ -5,7 +5,7 @@ const FREETRIANGLE = 3u;
 const MESHTRIANGLE = 4u;
 const MAXF = 0x1.fffffep+127f;
 const MIN_INTERSECT = 0.0001f;
-const PI   = 3.1415926f;
+const PI   = 3.14159265358979323846264338327950288f;
 const NUM_MESH_CHUNKS = 4u;
 const CUSTOM_ATTEN = 1f;
 // For UniformDiffuseSpec
@@ -284,9 +284,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var colour = vec3<f32>(0f);
 
     var seed = initRng(global_id, iter.ation);
-
+    iter.ation++;
     for (var i = 0u; i < render_info.samps_per_pix; i += 1u) {
-        iter.ation++;
         var intensity = 1f;
         var ray = pix_cam_to_rand_ray(ray_compute, vec2<u32>(global_id.x, global_id.y), camera, &seed);
         var hit_info: HitInfo;
@@ -427,16 +426,17 @@ fn get_ray_intersect(ray: Ray, hit_info: ptr<function, HitInfo>, rng: ptr<functi
             // let leaf_node: TreeNode = search_kd_tree(ray, entry_exit.x, entry_exit.y);                
             
             var closest_mesh_triangle = -1;
-            var hit_result = TriangleHitResult(-1f, vec2<f32>(-1f, -1f));
+            var closest_hit_result = TriangleHitResult(-1f, vec2<f32>(-1f, -1f));
             for (var i = 0u; i < leaf_node.leaf_mesh_size; i++) {
             // for (var i = 0u; i < arrayLength(&mesh_triangles); i++) {
-            
+                
                 // Retrieve the MeshTriangle array indices using the leaf_node_triangles so we only iterate based on a limited number of triangles
                 // hit_result = get_mesh_triangle_intersect(ray, i); 
-                hit_result = get_mesh_triangle_intersect(ray, leaf_node_triangles[leaf_node.leaf_mesh_index+1]); 
+                let hit_result = get_mesh_triangle_intersect(ray, leaf_node_triangles[leaf_node.leaf_mesh_index+1]); 
                 if hit_result.l != -1f && hit_result.l < closest_intersect {
                     closest_intersect = hit_result.l;
                     closest_mesh_triangle = i32(i);  
+                    closest_hit_result = hit_result;
                 }
             }
             if closest_mesh_triangle != -1 {
@@ -448,9 +448,6 @@ fn get_ray_intersect(ray: Ray, hit_info: ptr<function, HitInfo>, rng: ptr<functi
         }
     }
     
-    // Iterate through every mesh triangle
-    // for(var i = 0u; i < arrayLength(&meshes TODO: what's the best thing to iterate with??); i++) {  
-
     // If no hit get the cubemap background color
     if intersect.element_type == NONE && num_cube_map_faces() > 0u {
         intersect = Intersection(hit_info_distant_cube_map(ray), CUBEMAP, 0u, false, MAXF);
