@@ -195,8 +195,8 @@ struct DynDiffSpec {
 }
 
 struct Aabb {
-    bounds: array<vec2<f32>, 3>,
-    paddding: vec2<u32>,
+    bounds: array<vec4<f32>, 3>,
+    // paddding: vec2<u32>,
 }
 
 struct TreeNode {
@@ -209,6 +209,13 @@ struct TreeNode {
     leaf_mesh_size: u32, 
     padding: f32,
 }
+
+// struct AabbEntryExit {
+//     entry_axis: u32,
+//     entry_t: f32,
+//     exit_axis: u32,
+//     exit_t: f32,
+// }
 
 @group(0) @binding(0)
 var<uniform> camera: Camera;
@@ -259,7 +266,7 @@ var<storage, read> leaf_nodes: array<u32>;
 var<storage, read> tree_nodes: array<TreeNode>;
 
 @group(2) @binding(6)
-var<storage, read> kd_tree: array<Aabb>;
+var<uniform> kd_tree: Aabb;
 
 // For better precision, each pixel is represented by 4 floats (RGBA)
 @group(3) @binding(0)
@@ -412,7 +419,7 @@ fn get_ray_intersect(ray: Ray, hit_info: ptr<function, HitInfo>, rng: ptr<functi
         }
     }
 
-    if (contains_valid_mesh_triangles()) {
+    if (contains_valid_mesh_triangles() && get_entry_exit(ray, kd_tree)) {
         var closest_mesh_triangle = -1;
         var hit_result = TriangleHitResult(-1f, vec2<f32>(-1f, -1f));
         for (var i = 0u; i < arrayLength(&mesh_triangles); i++) {
@@ -664,10 +671,26 @@ fn get_free_triangle_intersect(ray: Ray, i: u32) -> TriangleHitResult {
 ///////////////////////////////
 // KD Tree functions
 ///////////////////////////////
-fn get_entry_exit() -> u32 {
+fn get_entry_exit(ray: Ray, aabb: Aabb) -> bool {
+    var global_min_t: vec2<f32> = vec2(MAXF, -MAXF);
+    for (var i=0; i<3; i++) {
+        var ray_dir: f32;
+        if abs(ray.direction[i]) < MIN_INTERSECT {
+            if ray.direction[i] < 0 {ray_dir = -MIN_INTERSECT;}
+            else {ray_dir = MIN_INTERSECT;}
+        } else {ray_dir = ray.direction[i];}
 
-    return 0u;
+        let min_t = min((aabb.bounds[i].x - ray.origin[i]) / ray.direction[i], (aabb.bounds[i].y - ray.origin[i]) / ray.direction[i]);
+        let max_t = max((aabb.bounds[i].x - ray.origin[i]) / ray.direction[i], (aabb.bounds[i].y - ray.origin[i]) / ray.direction[i]);
+
+        if (max_t <= min_t) {return false;}//vec2(MAXF, MAXF);}
+        else {global_min_t= vec2(min_t, max_t);}
+    }
+
+    return true;//min(min(), min());
 }
+
+// fn 
 
 ///////////////////////////////
 // Mesh Triangle functions

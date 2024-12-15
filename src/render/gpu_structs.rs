@@ -631,11 +631,18 @@ pub struct GPUIter {
 #[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GPUAabb {
     // aabb bounding box of whatever object. Only used for GPUKdTree for now.
-    pub bounds: [PlaneBounds; 3],
-    pub padding: [f32; 2],
+    pub bounds: [[f32; 4]; 3],
+    // pub padding: [f32; 2],
 }
 
 impl GPUAabb {  
+    pub fn new (aabb: Aabb) -> Self {
+        Self {
+            bounds: [[aabb.bounds[0].low, aabb.bounds[0].high, 0.0, 0.0],
+                     [aabb.bounds[1].low, aabb.bounds[1].high, 0.0, 0.0],
+                     [aabb.bounds[2].low, aabb.bounds[2].high, 0.0, 0.0]]
+        }
+    }
     // We want the kd tree for the meshes only for the GPU mode. KD tree doesn't help much for the other primitives as we can't add as many
     // So, the KD tree is its own primitive in a way like the Spheres and FreeTriangles
     pub fn build_gpu_kd_tree(mesh_triangles: &Vec<MeshTriangle>, max_depth: usize) -> (GPUAabb, Vec<GPUTreeNode>, Vec<u32>){
@@ -673,7 +680,7 @@ impl GPUAabb {
         Self::build_gpu_tree_nodes(&aabbs, 0, max_depth, &mut nodes, &mut leaf_node_meshes, 0, false);
 
         // Return the aabb of the entire kd-tree and its nodes
-        (GPUAabb{bounds: kd_tree_aabb.bounds, padding: [0.0; 2]}, nodes, leaf_node_meshes)
+        (GPUAabb::new(kd_tree_aabb), nodes, leaf_node_meshes)
 
     }
 
@@ -686,6 +693,13 @@ impl GPUAabb {
         // TODO: If performance impact of the push is high, initialize nodes with maximum theoretical size before running so it won't take as long. 
         if cur_depth > max_depth || index_and_aabbs.len() <= 1 {
             nodes.push(GPUTreeNode::new_leaf_node(index_and_aabbs, leaf_node_meshes));
+            let cur_idx = nodes.len() - 1;
+            // add child index for the parent of this leaf node
+            if high_node {
+                nodes.get_mut(parent_node_idx).unwrap().high = cur_idx as u32;
+            } else {
+                nodes.get_mut(parent_node_idx).unwrap().low = cur_idx as u32;
+            }
         } else {
             let aabbs: Vec<Aabb> = index_and_aabbs.iter().map(|(_,aabb)| *aabb).collect();
             let split = (&aabbs).into_iter().map(|aabb| aabb.centroid()).sum::<Vector3<f32>>() / (aabbs.len() as f32);

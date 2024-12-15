@@ -45,6 +45,7 @@ impl Renderer {
         thread::spawn(move || {
             let renderer_inner = self.clone();
             let iter_progress = ProgressBar::new(self.scheme.render_info.samps_per_pix as u64);
+            let start = Instant::now();
             iter_progress.set_style(
                 ProgressStyle::default_bar()
                 .template("[{elapsed_precise}] {bar:80.cyan/blue} {pos}/{len} {msg}").unwrap()
@@ -61,7 +62,8 @@ impl Renderer {
                 let gpu_scene = GPUScene { cam: renderer_inner.scheme.cam.into(), elements: renderer_inner.scheme.scene_members.extract_concrete_types() };
                 render_to_target_gpu(&self.target, &gpu_scene, || self.update_output(), &self.scheme.render_info, &iter_progress);
             }
-
+            let elapsed = start.elapsed();
+            println!(" Rendering finished! Time elapsed: {:.3?}", elapsed);
         });
     }
 
