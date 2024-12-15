@@ -7,7 +7,7 @@ const MAXF = 0x1.fffffep+127f;
 const MIN_INTERSECT = 0.0001f;
 const PI   = 3.1415926f;
 const NUM_MESH_CHUNKS = 4u;
-
+const CUSTOM_ATTEN = 1f;
 // For UniformDiffuseSpec
 const SPEC = 0u;
 const DIFF = 1u;
@@ -189,6 +189,11 @@ struct Iter {
     ation: u32,
 }
 
+struct DynDiffSpec {
+    should_diff: bool,
+    roughness: f32
+}
+
 @group(0) @binding(0)
 var<uniform> camera: Camera;
 
@@ -356,6 +361,7 @@ fn pix_cam_raw_ray(compute: RayCompute, pixel: vec2<u32>, camera: Camera, rng: p
 
 fn get_ray_intersect(ray: Ray, hit_info: ptr<function, HitInfo>, rng: ptr<function, u32>) -> Intersection {
     // Initialize intersect struct
+    var barycentric = vec2<f32>(0f, 0f);
     var intersect = Intersection(vec4<f32>(0f, 0f, 0f, 1f), NONE, 0u, false, 0f);
     var closest_intersect = MAXF;
     
@@ -394,6 +400,7 @@ fn get_ray_intersect(ray: Ray, hit_info: ptr<function, HitInfo>, rng: ptr<functi
         if closest_mesh_triangle != -1 {
             let mesh_triangle = mesh_triangles[u32(closest_mesh_triangle)];
             let rgba = get_rgba_for_mesh_triangle(mesh_triangle, hit_result.barycentric);
+            barycentric = hit_result.barycentric;
             intersect = Intersection(rgba, MESHTRIANGLE, u32(closest_mesh_triangle), false, hit_result.l);
         }
     }
@@ -407,7 +414,7 @@ fn get_ray_intersect(ray: Ray, hit_info: ptr<function, HitInfo>, rng: ptr<functi
         *hit_info = HitInfo(intersect.colour.xyz, vec3(0f), vec3(0f), RayRefl(ray, 1), true);
         intersect.has_bounce = false;
     } else {
-        *hit_info = get_hit_info(ray, intersect, rng);
+        *hit_info = get_hit_info(ray, intersect, barycentric, rng);
         intersect.has_bounce = true;
     }
 
@@ -415,7 +422,7 @@ fn get_ray_intersect(ray: Ray, hit_info: ptr<function, HitInfo>, rng: ptr<functi
 }
 // Returns hit index and ray length
 
-fn get_hit_info(ray: Ray, intersect: Intersection, rng: ptr<function, u32>) -> HitInfo {
+fn get_hit_info(ray: Ray, intersect: Intersection, barycentric: vec2<f32>, rng: ptr<function, u32>) -> HitInfo {
     var refl_ray = RayRefl(ray, 1f);
     var has_emissive = false;
     switch intersect.element_type {
@@ -460,7 +467,25 @@ fn get_hit_info(ray: Ray, intersect: Intersection, rng: ptr<function, u32>) -> H
             has_emissive = triangle.material.has_emissive > 0u;
             return HitInfo(triangle.material.emissive, pos, norm, refl_ray, has_emissive);
         }
-        case MESHTRIANGLE: {return HitInfo(vec3(0f), vec3(0f), vec3(0f), refl_ray, false);}
+        case MESHTRIANGLE: {
+            let mesh_triangle = mesh_triangles[intersect.element_idx];
+            let norm = get_norm_for_mesh_triangle(mesh_triangle, barycentric);
+            let pos = ray.direction * intersect.ray_distance + ray.origin + norm * MIN_INTERSECT;
+            let dyn_diff_spec = get_diff_spec_and_roughness(mesh_triangle, ray, norm, barycentric, rng);
+            if dyn_diff_spec.should_diff {
+                refl_ray = get_diff(ray, norm, pos, rng);
+            } else {
+                refl_ray = get_spec(ray, norm, pos);
+            }
+            let uvw = vec3<f32>(
+                get_random_f32(rng),
+                get_random_f32(rng),
+                get_random_f32(rng),
+            );
+            let scatter = dyn_diff_spec.roughness * uvw;
+            refl_ray.ray.direction = normalize(refl_ray.ray.direction + scatter);
+            return HitInfo(vec3(0f), pos, norm, refl_ray, false);
+        }
 
         default: {return HitInfo(vec3(0f), vec3(0f), vec3(0f), refl_ray, false);}
     }
@@ -633,37 +658,49 @@ fn get_vertex_for_mesh_triangle(mesh_triangle: MeshTriangle, vert_id: u32) -> ve
     let triangle_offset = data_offset + prim_header.triangle_offset;
     if mesh_header.chunk_id == 0 {
         let position_index = mesh_data_chunk_0[triangle_offset + inner_id * 3 + vert_id];
+        let base_index = position_offset + u32(position_index) * 3;
         return vec3<f32>(
-            mesh_data_chunk_0[position_offset + u32(position_index) * 3],
-            mesh_data_chunk_0[position_offset + u32(position_index) * 3 + 1u],
-            mesh_data_chunk_0[position_offset + u32(position_index) * 3 + 2u],
+            mesh_data_chunk_0[base_index],
+            mesh_data_chunk_0[base_index + 1u],
+            mesh_data_chunk_0[base_index + 2u],
         );
     }
     else if mesh_header.chunk_id == 1 {
         let position_index = mesh_data_chunk_1[triangle_offset + inner_id * 3 + vert_id];
+        let base_index = position_offset + u32(position_index) * 3;
         return vec3<f32>(
-            mesh_data_chunk_1[position_offset + u32(position_index) * 3],
-            mesh_data_chunk_1[position_offset + u32(position_index) * 3 + 1u],
-            mesh_data_chunk_1[position_offset + u32(position_index) * 3 + 2u],
+            mesh_data_chunk_1[base_index],
+            mesh_data_chunk_1[base_index + 1u],
+            mesh_data_chunk_1[base_index + 2u],
         );
     }
     else if mesh_header.chunk_id == 2 {
         let position_index = mesh_data_chunk_2[triangle_offset + inner_id * 3 + vert_id];
+        let base_index = position_offset + u32(position_index) * 3;
         return vec3<f32>(
-            mesh_data_chunk_2[position_offset + u32(position_index) * 3],
-            mesh_data_chunk_2[position_offset + u32(position_index) * 3 + 1u],
-            mesh_data_chunk_2[position_offset + u32(position_index) * 3 + 2u],
+            mesh_data_chunk_2[base_index],
+            mesh_data_chunk_2[base_index + 1u],
+            mesh_data_chunk_2[base_index + 2u],
         );
     }
     else if mesh_header.chunk_id == 3 {
         let position_index = mesh_data_chunk_3[triangle_offset + inner_id * 3 + vert_id];
+        let base_index = position_offset + u32(position_index) * 3;
         return vec3<f32>(
-            mesh_data_chunk_3[position_offset + u32(position_index) * 3],
-            mesh_data_chunk_3[position_offset + u32(position_index) * 3 + 1u],
-            mesh_data_chunk_3[position_offset + u32(position_index) * 3 + 2u],
+            mesh_data_chunk_3[base_index],
+            mesh_data_chunk_3[base_index + 1u],
+            mesh_data_chunk_3[base_index + 2u],
         );
     }
     return vec3<f32>(0.0, 0.0, 0.0);
+}
+
+fn get_mesh_triangle_intersect(ray: Ray, i: u32) -> TriangleHitResult {
+    let mesh_triangle = mesh_triangles[i];
+    let vert1 = get_vertex_for_mesh_triangle(mesh_triangle, 0u);
+    let vert2 = get_vertex_for_mesh_triangle(mesh_triangle, 1u);
+    let vert3 = get_vertex_for_mesh_triangle(mesh_triangle, 2u);
+    return get_triangle_intersect(ray, vert1, vert2, vert3);
 }
 
 fn tex_coord_from_bary(mesh_triangle: MeshTriangle, coords_offset: u32, barycentric: vec2<f32>) -> vec2<f32> {
@@ -677,7 +714,7 @@ fn tex_coord_from_bary(mesh_triangle: MeshTriangle, coords_offset: u32, barycent
 
     let b1 = barycentric.x;
     let b2 = barycentric.y;
-    let b0 = 1.0 - b1 - b2;
+    let b0 = 1.0 - b2 - b1;
 
     if mesh_header.chunk_id == 0 {
         let idx0 = mesh_data_chunk_0[triangle_offset + inner_id * 3];
@@ -762,6 +799,41 @@ fn tex_coord_from_bary(mesh_triangle: MeshTriangle, coords_offset: u32, barycent
     return vec2<f32>(0.0, 0.0);
 }
 
+fn get_pixel_from_image(coord_from_bary: vec2<f32>, img_offset: u32, img_width: u32, img_height: u32, chunk_id: u32) -> vec3<f32> {
+    let pixel_x = u32(trunc(clamp(coord_from_bary.x * f32(img_width), 0.0, f32(img_width - 1u))));
+    let pixel_y = u32(trunc(clamp(coord_from_bary.y * f32(img_height), 0.0, f32(img_height - 1u))));
+    let pixel_index = img_offset + 3u * (pixel_x + pixel_y * img_width);
+    if chunk_id == 0 {
+        return vec3<f32>(
+            mesh_data_chunk_0[pixel_index],
+            mesh_data_chunk_0[pixel_index + 1u],
+            mesh_data_chunk_0[pixel_index + 2u],
+        );
+    }
+    else if chunk_id == 1 {
+        return vec3<f32>(
+            mesh_data_chunk_1[pixel_index],
+            mesh_data_chunk_1[pixel_index + 1u],
+            mesh_data_chunk_1[pixel_index + 2u],
+        );
+    }
+    else if chunk_id == 2 {
+        return vec3<f32>(
+            mesh_data_chunk_2[pixel_index],
+            mesh_data_chunk_2[pixel_index + 1u],
+            mesh_data_chunk_2[pixel_index + 2u],
+        );
+    }
+    else if chunk_id == 3 {
+        return vec3<f32>(
+            mesh_data_chunk_3[pixel_index],
+            mesh_data_chunk_3[pixel_index + 1u],
+            mesh_data_chunk_3[pixel_index + 2u],
+        );
+    }
+    return vec3<f32>(0.0, 0.0, 0.0);
+}
+
 fn get_rgb_factor_for_mesh_triangle(mesh_triangle: MeshTriangle) -> vec3<f32> {
     let mesh_id = mesh_triangle.mesh_index;
     let prim_id = mesh_triangle.prim_index;
@@ -811,54 +883,239 @@ fn get_rgba_for_mesh_triangle(mesh_triangle: MeshTriangle, barycentric: vec2<f32
     if prim_header.rgb_info_coords_count == 0u {
         return vec4<f32>(rgb_info_factor, 0);
     }
-
     let data_offset = mesh_header.data_offset + prim_header.mesh_data_offset;
     let rgb_info_coords_offset = data_offset + prim_header.rgb_info_coords_offset;
     let tex_coord = tex_coord_from_bary(mesh_triangle, rgb_info_coords_offset, barycentric);
     let texture_offset = data_offset + prim_header.texture_data_offset;
     let texture_width = prim_header.texture_data_width;
-    var pixel = vec3<f32>(0.0, 0.0, 0.0);
-    let pixel_x = u32(trunc(clamp(tex_coord.x * f32(texture_width), 0.0, f32(texture_width - 1u))));
-    let pixel_y = u32(trunc(clamp(tex_coord.y * f32(texture_width), 0.0, f32(texture_width - 1u))));
-    let pixel_index = texture_offset + 3u * (pixel_x + pixel_y * texture_width);
-    if mesh_header.chunk_id == 0 {
-        pixel = vec3<f32>(
-            mesh_data_chunk_0[pixel_index],
-            mesh_data_chunk_0[pixel_index + 1u],
-            mesh_data_chunk_0[pixel_index + 2u],
-        );
-    }
-    else if mesh_header.chunk_id == 1 {
-        pixel = vec3<f32>(
-            mesh_data_chunk_1[pixel_index],
-            mesh_data_chunk_1[pixel_index + 1u],
-            mesh_data_chunk_1[pixel_index + 2u],
-        );
-    }
-    else if mesh_header.chunk_id == 2 {
-        pixel = vec3<f32>(
-            mesh_data_chunk_2[pixel_index],
-            mesh_data_chunk_2[pixel_index + 1u],
-            mesh_data_chunk_2[pixel_index + 2u],
-        );
-    }
-    else if mesh_header.chunk_id == 3 {
-        pixel = vec3<f32>(
-            mesh_data_chunk_3[pixel_index],
-            mesh_data_chunk_3[pixel_index + 1u],
-            mesh_data_chunk_3[pixel_index + 2u],
-        );
-    }
-    let scaled_rgb = pixel * rgb_info_factor;
+    let texture_height = prim_header.texture_data_height;
+    let pixel = get_pixel_from_image(tex_coord, texture_offset, texture_width, texture_height, mesh_header.chunk_id);
+    let scaled_rgb = rgb_info_factor * pixel;
     return vec4<f32>(scaled_rgb, 0);
 }
 
-fn get_mesh_triangle_intersect(ray: Ray, i: u32) -> TriangleHitResult {
-    let mesh_triangle = mesh_triangles[i];
-    let vert1 = get_vertex_for_mesh_triangle(mesh_triangle, 0u);
-    let vert2 = get_vertex_for_mesh_triangle(mesh_triangle, 1u);
-    let vert3 = get_vertex_for_mesh_triangle(mesh_triangle, 2u);
-    return get_triangle_intersect(ray, vert1, vert2, vert3);
+fn get_norm_from_norms(mesh_triangle: MeshTriangle, normal_transform: mat3x3<f32>) -> vec3<f32> {
+    let mesh_id = mesh_triangle.mesh_index;
+    let prim_id = mesh_triangle.prim_index;
+    let inner_id = mesh_triangle.inner_index;
+    let mesh_header = mesh_headers[mesh_id];
+    let prim_header = primitive_headers[mesh_header.primitive_header_offset + prim_id];
+    let data_offset = mesh_header.data_offset + prim_header.mesh_data_offset;
+    let triangle_offset = data_offset + prim_header.triangle_offset;
+    let normal_offset = data_offset + prim_header.normal_offset;
+    if mesh_header.chunk_id == 0 {
+        let norm_index1 = mesh_data_chunk_0[triangle_offset + inner_id * 3];
+        let norm_index2 = mesh_data_chunk_0[triangle_offset + inner_id * 3 + 1u];
+        let norm_index3 = mesh_data_chunk_0[triangle_offset + inner_id * 3 + 2u];
+        let norm1 = vec3<f32>(
+            mesh_data_chunk_0[normal_offset + u32(norm_index1) * 3],
+            mesh_data_chunk_0[normal_offset + u32(norm_index1) * 3 + 1u],
+            mesh_data_chunk_0[normal_offset + u32(norm_index1) * 3 + 2u],
+        );
+        let norm2 = vec3<f32>(
+            mesh_data_chunk_0[normal_offset + u32(norm_index2) * 3],
+            mesh_data_chunk_0[normal_offset + u32(norm_index2) * 3 + 1u],
+            mesh_data_chunk_0[normal_offset + u32(norm_index2) * 3 + 2u],
+        );
+        let norm3 = vec3<f32>(
+            mesh_data_chunk_0[normal_offset + u32(norm_index3) * 3],
+            mesh_data_chunk_0[normal_offset + u32(norm_index3) * 3 + 1u],
+            mesh_data_chunk_0[normal_offset + u32(norm_index3) * 3 + 2u],
+        );
+
+        let accum = normal_transform * (norm1 + norm2 + norm3);
+        return normalize(accum);
+    }
+    else if mesh_header.chunk_id == 1 {
+        let norm_index1 = mesh_data_chunk_1[triangle_offset + inner_id * 3];
+        let norm_index2 = mesh_data_chunk_1[triangle_offset + inner_id * 3 + 1u];
+        let norm_index3 = mesh_data_chunk_1[triangle_offset + inner_id * 3 + 2u];
+        let norm1 = vec3<f32>(
+            mesh_data_chunk_1[normal_offset + u32(norm_index1) * 3],
+            mesh_data_chunk_1[normal_offset + u32(norm_index1) * 3 + 1u],
+            mesh_data_chunk_1[normal_offset + u32(norm_index1) * 3 + 2u],
+        );
+        let norm2 = vec3<f32>(
+            mesh_data_chunk_1[normal_offset + u32(norm_index2) * 3],
+            mesh_data_chunk_1[normal_offset + u32(norm_index2) * 3 + 1u],
+            mesh_data_chunk_1[normal_offset + u32(norm_index2) * 3 + 2u],
+        );
+        let norm3 = vec3<f32>(
+            mesh_data_chunk_1[normal_offset + u32(norm_index3) * 3],
+            mesh_data_chunk_1[normal_offset + u32(norm_index3) * 3 + 1u],
+            mesh_data_chunk_1[normal_offset + u32(norm_index3) * 3 + 2u],
+        );
+
+        let accum = normal_transform * (norm1 + norm2 + norm3);
+        return normalize(accum);
+    }
+    else if mesh_header.chunk_id == 2 {
+        let norm_index1 = mesh_data_chunk_2[triangle_offset + inner_id * 3];
+        let norm_index2 = mesh_data_chunk_2[triangle_offset + inner_id * 3 + 1u];
+        let norm_index3 = mesh_data_chunk_2[triangle_offset + inner_id * 3 + 2u];
+        let norm1 = vec3<f32>(
+            mesh_data_chunk_2[normal_offset + u32(norm_index1) * 3],
+            mesh_data_chunk_2[normal_offset + u32(norm_index1) * 3 + 1u],
+            mesh_data_chunk_2[normal_offset + u32(norm_index1) * 3 + 2u],
+        );
+        let norm2 = vec3<f32>(
+            mesh_data_chunk_2[normal_offset + u32(norm_index2) * 3],
+            mesh_data_chunk_2[normal_offset + u32(norm_index2) * 3 + 1u],
+            mesh_data_chunk_2[normal_offset + u32(norm_index2) * 3 + 2u],
+        );
+        let norm3 = vec3<f32>(
+            mesh_data_chunk_2[normal_offset + u32(norm_index3) * 3],
+            mesh_data_chunk_2[normal_offset + u32(norm_index3) * 3 + 1u],
+            mesh_data_chunk_2[normal_offset + u32(norm_index3) * 3 + 2u],
+        );
+        let accum = normal_transform * (norm1 + norm2 + norm3);
+        return normalize(accum);
+
+    }
+    else if mesh_header.chunk_id == 3 {
+        let norm_index1 = mesh_data_chunk_3[triangle_offset + inner_id * 3];
+        let norm_index2 = mesh_data_chunk_3[triangle_offset + inner_id * 3 + 1u];
+        let norm_index3 = mesh_data_chunk_3[triangle_offset + inner_id * 3 + 2u];
+        let norm1 = vec3<f32>(
+            mesh_data_chunk_3[normal_offset + u32(norm_index1) * 3],
+            mesh_data_chunk_3[normal_offset + u32(norm_index1) * 3 + 1u],
+            mesh_data_chunk_3[normal_offset + u32(norm_index1) * 3 + 2u],
+        );
+        let norm2 = vec3<f32>(
+            mesh_data_chunk_3[normal_offset + u32(norm_index2) * 3],
+            mesh_data_chunk_3[normal_offset + u32(norm_index2) * 3 + 1u],
+            mesh_data_chunk_3[normal_offset + u32(norm_index2) * 3 + 2u],
+        );
+        let norm3 = vec3<f32>(
+            mesh_data_chunk_3[normal_offset + u32(norm_index3) * 3],
+            mesh_data_chunk_3[normal_offset + u32(norm_index3) * 3 + 1u],
+            mesh_data_chunk_3[normal_offset + u32(norm_index3) * 3 + 2u],
+        );
+        let accum = normal_transform * (norm1 + norm2 + norm3);
+        return normalize(accum);
+    }
+    return vec3<f32>(0.0, 0.0, 0.0);
+}
+
+fn get_norm_info_scale(norm_info_scale_offset: u32, chunk_id: u32) -> f32 {
+    if chunk_id == 0 {
+        return mesh_data_chunk_0[norm_info_scale_offset];
+    }
+    else if chunk_id == 1 {
+        return mesh_data_chunk_1[norm_info_scale_offset];
+    }
+    else if chunk_id == 2 {
+        return mesh_data_chunk_2[norm_info_scale_offset];
+    }
+    else if chunk_id == 3 {
+        return mesh_data_chunk_3[norm_info_scale_offset];
+    }
+    return 0.0;
+}
+
+fn get_norm_for_mesh_triangle(mesh_triangle: MeshTriangle, barycentric: vec2<f32>) -> vec3<f32> {
+    let normal_transform = mat3x3<f32>(
+        mesh_triangle.normal_transform[0].xyz,
+        mesh_triangle.normal_transform[1].xyz,
+        mesh_triangle.normal_transform[2].xyz,
+    );
+    let mesh_id = mesh_triangle.mesh_index;
+    let prim_id = mesh_triangle.prim_index;
+    let inner_id = mesh_triangle.inner_index;
+    let mesh_header = mesh_headers[mesh_id];
+    let prim_header = primitive_headers[mesh_header.primitive_header_offset + prim_id];
+    if prim_header.has_norm_info == 0u {
+        return get_norm_from_norms(mesh_triangle, normal_transform);
+    }
+    let data_offset = mesh_header.data_offset + prim_header.mesh_data_offset;
+    let norm_info_scale_offset = data_offset + prim_header.norm_info_scale_offset;
+    let norm_info_scale = get_norm_info_scale(norm_info_scale_offset, mesh_header.chunk_id);
+    let norm_info_coords_offset = data_offset + prim_header.norm_info_coords_offset;
+    let norm_coord = tex_coord_from_bary(mesh_triangle, norm_info_coords_offset, barycentric);
+    let normal_map_offset = data_offset + prim_header.normal_map_data_offset;
+    let normal_map_width = prim_header.normal_map_data_width;
+    let normal_map_height = prim_header.normal_map_data_height;
+    let pixel = get_pixel_from_image(norm_coord, normal_map_offset, normal_map_width, normal_map_height, mesh_header.chunk_id);
+    let scaled_norm = norm_info_scale * normal_transform * pixel;
+    return normalize(scaled_norm);
+}
+
+fn get_metal_rough_direct(mesh_triangle: MeshTriangle) -> vec2<f32> {
+    let mesh_id = mesh_triangle.mesh_index;
+    let prim_id = mesh_triangle.prim_index;
+    let inner_id = mesh_triangle.inner_index;
+    let mesh_header = mesh_headers[mesh_id];
+    let prim_header = primitive_headers[mesh_header.primitive_header_offset + prim_id];
+    let data_offset = mesh_header.data_offset + prim_header.mesh_data_offset;
+    let metal_rough_metal_offset = data_offset + prim_header.metal_rough_metal_offset;
+    let metal_rough_rough_offset = data_offset + prim_header.metal_rough_rough_offset;
+    if mesh_header.chunk_id == 0 {
+        return vec2<f32>(
+            mesh_data_chunk_0[metal_rough_metal_offset],
+            mesh_data_chunk_0[metal_rough_rough_offset],
+        );
+    }
+    else if mesh_header.chunk_id == 1 {
+        return vec2<f32>(
+            mesh_data_chunk_1[metal_rough_metal_offset],
+            mesh_data_chunk_1[metal_rough_rough_offset],
+        );
+    }
+    else if mesh_header.chunk_id == 2 {
+        return vec2<f32>(
+            mesh_data_chunk_2[metal_rough_metal_offset],
+            mesh_data_chunk_2[metal_rough_rough_offset],
+        );
+    }
+    else if mesh_header.chunk_id == 3 {
+        return vec2<f32>(
+            mesh_data_chunk_3[metal_rough_metal_offset],
+            mesh_data_chunk_3[metal_rough_rough_offset],
+        );
+    }
+    return vec2<f32>(0.0, 0.0);
+}
+
+fn get_scaled_metal_rough(mesh_triangle: MeshTriangle, barycentric: vec2<f32>, metalness: f32, roughness: f32) -> vec2<f32> {
+    let mesh_id = mesh_triangle.mesh_index;
+    let prim_id = mesh_triangle.prim_index;
+    let inner_id = mesh_triangle.inner_index;
+    let mesh_header = mesh_headers[mesh_id];
+    let prim_header = primitive_headers[mesh_header.primitive_header_offset + prim_id];
+    let data_offset = mesh_header.data_offset + prim_header.mesh_data_offset;
+    let metal_rough_coords_offset = data_offset + prim_header.metal_rough_coords_offset;
+    let metal_rough_coord = tex_coord_from_bary(mesh_triangle, metal_rough_coords_offset, barycentric);
+    let metal_rough_map_offset = data_offset + prim_header.metal_rough_map_data_offset;
+    let metal_rough_map_width = prim_header.metal_rough_map_data_width;
+    let metal_rough_map_height = prim_header.metal_rough_map_data_height;
+    let pixel = get_pixel_from_image(metal_rough_coord, metal_rough_map_offset, metal_rough_map_width, metal_rough_map_height, mesh_header.chunk_id);
+    return vec2<f32>(
+        pixel.z * metalness,
+        pixel.y * roughness,
+    );
+}
+
+fn get_diff_spec_and_roughness(mesh_triangle: MeshTriangle, ray: Ray, norm: vec3<f32>, barycentric: vec2<f32>, rng: ptr<function, u32>) -> DynDiffSpec {
+    let mesh_id = mesh_triangle.mesh_index;
+    let prim_id = mesh_triangle.prim_index;
+    let inner_id = mesh_triangle.inner_index;
+    let mesh_header = mesh_headers[mesh_id];
+    let prim_header = primitive_headers[mesh_header.primitive_header_offset + prim_id];
+    let metal_rough = get_metal_rough_direct(mesh_triangle);
+    var metalness = metal_rough.x;
+    var roughness = metal_rough.y;
+    if prim_header.metal_rough_coords_count != 0u {
+        let scaled_metal_rough = get_scaled_metal_rough(mesh_triangle, barycentric, metalness, roughness);
+        metalness = scaled_metal_rough.x;
+        roughness = scaled_metal_rough.y;
+    }
+    let r0 = 0.04 + (1.0 - 0.04) * metalness; // based on gltf definition of metalness for fresnel
+    let reflectance = r0 + (1.0 - r0) * CUSTOM_ATTEN * pow(abs(dot(ray.direction, norm)), 5.0);
+
+    let u = get_random_f32(rng);
+
+    let should_diff = (u < (1.0 - reflectance));
+    return DynDiffSpec(should_diff, roughness);
 }
 
 ///////////////////////////////
@@ -970,7 +1227,6 @@ fn initRng(global_id: vec3<u32>, in_seed: u32) -> u32 {
     return jenkinsHash(seed);
 }
 
-// Generate random float between 0 and 1
 fn get_random_f32(seed: ptr<function, u32>) -> f32 {
     // let seed = 88888888u;
     let newState = *seed * 747796405u + 2891336453u;

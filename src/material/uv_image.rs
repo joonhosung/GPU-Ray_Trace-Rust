@@ -31,7 +31,9 @@ impl UVRgb32FImage {
         [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0]
     */
     pub fn as_raw(&self) -> Vec<f32> {
-        self.0.pixels().flat_map(|p| p.channels().to_vec()).collect()
+        let pixels: Vec<f32> = self.0.pixels().flat_map(|p| p.channels().to_vec()).collect();
+        assert!(pixels.len() == self.get_width() as usize * self.get_height() as usize * 3);
+        return pixels;
     }
 }
 

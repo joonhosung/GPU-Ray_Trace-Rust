@@ -538,7 +538,7 @@ impl GPUMeshData {
                 positions: mesh.poses[i].iter().map(|v| [v.x, v.y, v.z]).collect(),
                 norms: mesh.norms[i].iter().map(|v| [v.x, v.y, v.z]).collect(),
                 triangles: mesh.indices[i].iter().map(|v| [v[0] as f32, v[1] as f32, v[2] as f32]).collect(),
-                rgb_info_factor: mesh.rgb_info[i].factor.into(),
+                rgb_info_factor: mesh.rgb_info[i].factor.as_slice().try_into().unwrap(),
                 rgb_info_coords: mesh.rgb_info[i].coords.as_ref().map(|v| v.iter().map(|v| [v.x, v.y]).collect()),
                 norm_info_scale: mesh.norm_info[i].as_ref().map(|v| v.scale),
                 norm_info_coords: mesh.norm_info[i].as_ref().map(|v| v.coords.iter().map(|v| [v.x, v.y]).collect()),
