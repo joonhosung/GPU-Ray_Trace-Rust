@@ -423,25 +423,6 @@ pub struct GPUPrimitiveData {
 }
 
 impl GPUPrimitiveData {
-    pub fn get_buffer_size(&self) -> usize {
-        let mut buffer_size = 0;
-        buffer_size += self.positions.len() * std::mem::size_of::<[f32; 3]>();
-        buffer_size += self.norms.len() * std::mem::size_of::<[f32; 3]>();
-        buffer_size += self.triangles.len() * std::mem::size_of::<[u32; 3]>();
-        buffer_size += std::mem::size_of::<[f32; 3]>();  // rgb_info_factor
-        buffer_size += self.rgb_info_coords.as_ref().map_or(0, |v| v.len() * std::mem::size_of::<[f32; 2]>());
-        buffer_size += std::mem::size_of::<f32>();  // norm_info_scale if Some
-        buffer_size += self.norm_info_coords.as_ref().map_or(0, |v| v.len() * std::mem::size_of::<[f32; 2]>());
-        buffer_size += std::mem::size_of::<f32>();  // metal_rough_metal
-        buffer_size += std::mem::size_of::<f32>();  // metal_rough_rough
-        buffer_size += self.metal_rough_coords.as_ref().map_or(0, |v| v.len() * std::mem::size_of::<[f32; 2]>());
-        buffer_size += self.texture_data.as_ref().map_or(0, |v| v.len() * std::mem::size_of::<f32>());
-        buffer_size += self.normal_map_data.as_ref().map_or(0, |v| v.len() * std::mem::size_of::<f32>());
-        buffer_size += self.metal_rough_map_data.as_ref().map_or(0, |v| v.len() * std::mem::size_of::<f32>());
-        buffer_size += std::mem::size_of::<[f32; 16]>();  // trans_mat
-        return buffer_size;
-    }
-
     pub fn get_raw_buffer(&self) -> Vec<f32> {
         let mut buffer: Vec<f32> = Vec::new();
         buffer.extend_from_slice(bytemuck::cast_slice(&self.positions));
