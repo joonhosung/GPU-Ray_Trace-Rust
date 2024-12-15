@@ -1,7 +1,6 @@
 use serde::Deserialize;
-use nalgebra::{ArrayStorage, Const, Matrix, Matrix3, Matrix4, Vector3};
+use nalgebra::{Matrix4, Vector3};
 use crate::scene;
-use nalgebra_glm::{look_at, look_at_lh, look_at_rh};
 
 #[derive(Deserialize, Debug, Clone, Copy)]
 pub struct Cam {
@@ -84,7 +83,7 @@ impl From<Cam> for scene::Cam {
 
 impl Cam {
     // Update the view_eulers to look at a certain point
-    fn look_at(mut self, pos: Vector3<f32>) {
+    fn look_at(self, pos: Vector3<f32>) {
         // self.view_eulers = 
     }
 }

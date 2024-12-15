@@ -146,9 +146,10 @@ impl GimmeNorm for NormFromMesh<'_> {
                 norm.normalize()
             },
             None => { // just interpolate the normal vector from given
-                let cum: Vector3<f32> = self.mesh.indices[prim_idx][inner_idx].iter()
-                    .map(|i| self.normal_transform * self.mesh.norms[prim_idx][*i])
+                let mut cum: Vector3<f32> = self.mesh.indices[prim_idx][inner_idx].iter()
+                    .map(|i| self.mesh.norms[prim_idx][*i])
                     .sum();
+                cum = self.normal_transform * cum;
                 cum.normalize()
             }
         }
@@ -224,7 +225,7 @@ impl DivertsRay for DivertsRayFromMesh<'_> {
     }
 }
 
-fn tex_coord_from_bary(mesh: &Mesh, coords: &Vec<Vector2<f32>>, barycentric: &(f32, f32), full_idx: (usize, usize)) -> Vector2<f32> {
+pub fn tex_coord_from_bary(mesh: &Mesh, coords: &Vec<Vector2<f32>>, barycentric: &(f32, f32), full_idx: (usize, usize)) -> Vector2<f32> {
     let (b1, b2) = *barycentric;
     let b0 = 1.0 - b2 - b1;
     let baryc: [f32; 3] = [b0, b1, b2];

@@ -1,4 +1,3 @@
-use std::ops::Deref;
 
 use serde::Deserialize;
 use bytemuck;
@@ -315,9 +314,6 @@ pub struct GPUPrimitiveHeader {
     pub has_norm_info: u32,
     pub norm_info_coords_count: u32,
 
-    pub tangents_offset: u32,
-    pub tangents_count: u32,
-
     pub metal_rough_metal_offset: u32,
     pub metal_rough_rough_offset: u32,
     pub metal_rough_coords_offset: u32,
@@ -335,7 +331,6 @@ pub struct GPUPrimitiveHeader {
     pub metal_rough_map_data_width: u32,
     pub metal_rough_map_data_height: u32,
 
-    pub _padding: [u32; 2],
 }
 
 impl GPUPrimitiveHeader {
@@ -353,8 +348,7 @@ impl GPUPrimitiveHeader {
         let rgb_info_coords_offset = rgb_info_factor_offset + mesh.rgb_info[i].factor.len() as u32;
         let norm_info_scale_offset = rgb_info_coords_offset + mesh.rgb_info[i].coords.as_ref().map_or(0, |v| v.len() as u32 * 2);
         let norm_info_coords_offset = norm_info_scale_offset + mesh.norm_info[i].as_ref().map_or(0, |_| 1);
-        let tangents_offset = norm_info_coords_offset + mesh.norm_info[i].as_ref().map_or(0, |v| v.coords.len() as u32 * 2);
-        let metal_rough_metal_offset = tangents_offset + mesh.tangents[i].as_ref().map_or(0, |v| v.len() as u32 * 3);
+        let metal_rough_metal_offset = norm_info_coords_offset + mesh.norm_info[i].as_ref().map_or(0, |v| v.coords.len() as u32 * 2);
         let metal_rough_rough_offset = metal_rough_metal_offset + 1;
         let metal_rough_coords_offset = metal_rough_rough_offset + 1;
         let texture_data_offset = metal_rough_coords_offset + mesh.metal_rough[i].coords.as_ref().map_or(0, |v| v.len() as u32 * 2);
@@ -383,9 +377,6 @@ impl GPUPrimitiveHeader {
             has_norm_info: mesh.norm_info[i].is_some() as u32,
             norm_info_coords_count: mesh.norm_info[i].as_ref().map_or(0,|v| v.coords.len() as u32),
 
-            tangents_offset,
-            tangents_count: mesh.tangents[i].as_ref().map_or(0,|v| v.len() as u32),
-
             metal_rough_metal_offset,
             metal_rough_rough_offset,
             metal_rough_coords_offset,
@@ -402,8 +393,6 @@ impl GPUPrimitiveHeader {
             metal_rough_map_data_offset,
             metal_rough_map_data_width: mesh.metal_rough_maps[i].as_ref().map_or(0, |img| img.get_width() as u32),
             metal_rough_map_data_height: mesh.metal_rough_maps[i].as_ref().map_or(0, |img| img.get_height() as u32),
-
-            _padding: [0; 2],
         };
 
         return prim_header;
@@ -420,8 +409,6 @@ pub struct GPUPrimitiveData {
 
     pub norm_info_scale: Option<f32>,
     pub norm_info_coords: Option<Vec<[f32; 2]>>,
-
-    pub tangents: Option<Vec<[f32; 3]>>,
 
     pub metal_rough_metal: f32,
     pub metal_rough_rough: f32,
@@ -444,7 +431,6 @@ impl GPUPrimitiveData {
         buffer_size += self.rgb_info_coords.as_ref().map_or(0, |v| v.len() * std::mem::size_of::<[f32; 2]>());
         buffer_size += std::mem::size_of::<f32>();  // norm_info_scale if Some
         buffer_size += self.norm_info_coords.as_ref().map_or(0, |v| v.len() * std::mem::size_of::<[f32; 2]>());
-        buffer_size += self.tangents.as_ref().map_or(0, |v| v.len() * std::mem::size_of::<[f32; 3]>());
         buffer_size += std::mem::size_of::<f32>();  // metal_rough_metal
         buffer_size += std::mem::size_of::<f32>();  // metal_rough_rough
         buffer_size += self.metal_rough_coords.as_ref().map_or(0, |v| v.len() * std::mem::size_of::<[f32; 2]>());
@@ -464,7 +450,6 @@ impl GPUPrimitiveData {
         self.rgb_info_coords.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(v)));
         self.norm_info_scale.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(&[*v])));
         self.norm_info_coords.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(v)));
-        self.tangents.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(v)));
         buffer.extend_from_slice(bytemuck::cast_slice(&[self.metal_rough_metal]));
         buffer.extend_from_slice(bytemuck::cast_slice(&[self.metal_rough_rough]));
         self.metal_rough_coords.as_ref().map(|v| buffer.extend_from_slice(bytemuck::cast_slice(v)));
@@ -542,7 +527,6 @@ impl GPUMeshData {
                 rgb_info_coords: mesh.rgb_info[i].coords.as_ref().map(|v| v.iter().map(|v| [v.x, v.y]).collect()),
                 norm_info_scale: mesh.norm_info[i].as_ref().map(|v| v.scale),
                 norm_info_coords: mesh.norm_info[i].as_ref().map(|v| v.coords.iter().map(|v| [v.x, v.y]).collect()),
-                tangents: mesh.tangents[i].as_ref().map(|v| v.iter().map(|v| [v.x, v.y, v.z]).collect()),
                 metal_rough_metal: mesh.metal_rough[i].metal,
                 metal_rough_rough: mesh.metal_rough[i].rough,
                 metal_rough_coords: mesh.metal_rough[i].coords.as_ref().map(|v| v.iter().map(|v| [v.x, v.y]).collect()),
@@ -588,32 +572,24 @@ impl GPUMeshData {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Copy, Clone, Default, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GPUMeshTriangle {
     pub mesh_index: u32,
     pub prim_index: u32,
     pub inner_index: u32,
     pub is_valid: u32,
-    pub normal_transform: [f32; 12], 
+    pub normal_transform_c1: [f32; 3],
+    pub _padding: f32,
+    pub normal_transform_c2: [f32; 3],
+    pub _padding2: f32,
+    pub normal_transform_c3: [f32; 3],
+    pub _padding3: f32,
 }
 
 impl GPUMeshTriangle {
-    fn matrix3_to_padded_array(matrix: &nalgebra::Matrix3<f32>) -> [f32; 12] {
-        let mut gpu_data = Vec::with_capacity(12); // 3 columns × 4 floats
-        for i in 0..3 {
-            gpu_data.extend_from_slice(&matrix.column(i).as_slice());
-            gpu_data.push(0.0); // padding for each column
-        }
-        return gpu_data.try_into().unwrap();
-    }
-
     pub fn get_empty() -> Self {
         Self {
-            mesh_index: 0,
-            prim_index: 0,
-            inner_index: 0,
-            is_valid: 0,
-            normal_transform: [0.0; 12],
+            ..Default::default()
         }
     }
     pub fn from_mesh_triangle(mesh_triangle: &MeshTriangle) -> Self {
@@ -626,14 +602,18 @@ impl GPUMeshTriangle {
 
         let mesh_index = mesh_triangle.verts.mesh_index;
         let (prim_index, inner_index) = mesh_triangle.verts.index;
-        let normal_transform = GPUMeshTriangle::matrix3_to_padded_array(&mesh_triangle.norm.normal_transform);
 
         Self {
             mesh_index,
             prim_index: prim_index as u32,
             inner_index: inner_index as u32,
             is_valid: 1,
-            normal_transform,
+            normal_transform_c1: mesh_triangle.norm.normal_transform.column(0).as_slice().try_into().unwrap(),
+            _padding: 0.0,
+            normal_transform_c2: mesh_triangle.norm.normal_transform.column(1).as_slice().try_into().unwrap(),
+            _padding2: 0.0,
+            normal_transform_c3: mesh_triangle.norm.normal_transform.column(2).as_slice().try_into().unwrap(),
+            _padding3: 0.0,
         }
     }
 }

@@ -1,9 +1,7 @@
 
 use bytemuck;
 use wgpu::util::DeviceExt;
-use crate::accel::Aabb;
-use crate::elements::mesh::{self, MeshTriangle};
-use crate::ray::Hitable;
+use crate::elements::mesh::{self};
 use crate::render::gpu_structs::{GPUAabb, GPUCubeMapFaceHeader};
 use crate::types::{GPUElements, GPU_NUM_MESH_BUFFERS};
 use super::gpu_structs::{

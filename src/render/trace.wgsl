@@ -121,9 +121,6 @@ struct PrimitiveHeader {
     has_norm_info: u32,
     norm_info_coords_count: u32,
 
-    tangents_offset: u32,
-    tangents_count: u32,
-
     metal_rough_metal_offset: u32,
     metal_rough_rough_offset: u32,
     metal_rough_coords_offset: u32,
@@ -140,8 +137,6 @@ struct PrimitiveHeader {
     metal_rough_map_data_offset: u32,
     metal_rough_map_data_width: u32,
     metal_rough_map_data_height: u32,
-
-    padding: vec2<f32>,
 }
 
 struct MeshTriangle {
@@ -149,7 +144,12 @@ struct MeshTriangle {
     prim_index: u32,
     inner_index: u32,
     is_valid: u32,
-    normal_transform: mat3x4<f32>, // Last row is padded to all zeros
+    normal_transform_c1: vec3<f32>,
+    padding: f32,
+    normal_transform_c2: vec3<f32>,
+    padding2: f32,
+    normal_transform_c3: vec3<f32>,
+    padding3: f32,
 }
 
 struct Ray {
@@ -482,7 +482,7 @@ fn get_hit_info(ray: Ray, intersect: Intersection, barycentric: vec2<f32>, rng: 
                 get_random_f32(rng),
                 get_random_f32(rng),
             );
-            let scatter = dyn_diff_spec.roughness * uvw;
+            let scatter = dyn_diff_spec.roughness * normalize(uvw);
             refl_ray.ray.direction = normalize(refl_ray.ray.direction + scatter);
             return HitInfo(vec3(0f), pos, norm, refl_ray, false);
         }
@@ -596,7 +596,7 @@ fn get_sphere_intersect(ray: Ray, i: u32) -> f32 {
 ///////////////////////////////
 
 fn get_triangle_intersect(ray: Ray, vert1: vec3<f32>, vert2: vec3<f32>, vert3: vec3<f32>) -> TriangleHitResult {
-    let e1 = vert2- vert1;
+    let e1 = vert2 - vert1;
     let e2 = vert3 - vert1;
     let ray_x_e2 = cross(ray.direction, e2);
     let det = dot(e1, ray_x_e2);
@@ -1015,9 +1015,9 @@ fn get_norm_info_scale(norm_info_scale_offset: u32, chunk_id: u32) -> f32 {
 
 fn get_norm_for_mesh_triangle(mesh_triangle: MeshTriangle, barycentric: vec2<f32>) -> vec3<f32> {
     let normal_transform = mat3x3<f32>(
-        mesh_triangle.normal_transform[0].xyz,
-        mesh_triangle.normal_transform[1].xyz,
-        mesh_triangle.normal_transform[2].xyz,
+        mesh_triangle.normal_transform_c1,
+        mesh_triangle.normal_transform_c2,
+        mesh_triangle.normal_transform_c3,
     );
     let mesh_id = mesh_triangle.mesh_index;
     let prim_id = mesh_triangle.prim_index;
@@ -1110,11 +1110,13 @@ fn get_diff_spec_and_roughness(mesh_triangle: MeshTriangle, ray: Ray, norm: vec3
         roughness = scaled_metal_rough.y;
     }
     let r0 = 0.04 + (1.0 - 0.04) * metalness; // based on gltf definition of metalness for fresnel
-    let reflectance = r0 + (1.0 - r0) * CUSTOM_ATTEN * pow(abs(dot(ray.direction, norm)), 5.0);
+    let reflectance = r0 + (1.0 - r0) * CUSTOM_ATTEN * (1.0 - pow(abs(dot(ray.direction, norm)), 5.0));
+
+    let diffp = 1.0 - reflectance;
 
     let u = get_random_f32(rng);
-
-    let should_diff = (u < (1.0 - reflectance));
+    let should_diff = (u < diffp);
+    
     return DynDiffSpec(should_diff, roughness);
 }
 
