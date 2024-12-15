@@ -2,7 +2,7 @@
 use bytemuck;
 use wgpu::util::DeviceExt;
 use crate::elements::mesh::{self};
-use crate::render::gpu_structs::{GPUAabb, GPUCubeMapFaceHeader};
+use crate::render::gpu_structs::{GPUAabb, GPUCubeMapFaceHeader, GPUTreeNode};
 use crate::types::{GPUElements, GPU_NUM_MESH_BUFFERS};
 use super::gpu_structs::{
     GPUCamera, 
@@ -155,7 +155,7 @@ impl ComputePipeline {
         return (mesh_chunk_header_buffer, mesh_header_buffer, primitive_header_buffer, data_buffers);
     }
 
-    fn create_renderables_buffer(device: &wgpu::Device, elements: &GPUElements) -> (wgpu::Buffer, wgpu::Buffer, wgpu::Buffer, wgpu::Buffer, wgpu::Buffer) {
+    fn create_renderables_buffer(device: &wgpu::Device, elements: &GPUElements, render_info: &GPURenderInfo) -> (wgpu::Buffer, wgpu::Buffer, wgpu::Buffer, wgpu::Buffer, wgpu::Buffer, wgpu::Buffer, wgpu::Buffer, wgpu::Buffer) {
         let (spheres, cube_maps, free_triangles, meshes) = elements;
         let mut sphere_data: Vec<GPUSphere> = vec![];
         let mut cube_map_headers: Vec<GPUCubeMapFaceHeader> = vec![];
@@ -180,7 +180,9 @@ impl ComputePipeline {
             free_triangle_data.push(gpu_free_triangle);
         }
         let mesh_triangles = create_mesh_triangles_from_meshes(meshes);
-        let index_with_aabb: Vec<(usize, GPUAabb)> = GPUAabb::get_aabb_meshes(&mesh_triangles);
+        // let index_with_aabb: Vec<(usize, GPUAabb)> = GPUAabb::get_aabb_meshes(&mesh_triangles);
+        // let leaf_node_meshes = Vec::<u32>::with_capacity(mesh_triangles.len());
+        let (kd_tree, tree_nodes, leaf_node_meshes): (GPUAabb, Vec<GPUTreeNode>, Vec<u32>) = GPUAabb::build_gpu_kd_tree(&mesh_triangles, render_info.kd_tree_depth as usize);
 
         for mesh_triangle in mesh_triangles {
             let gpu_mesh_triangle = GPUMeshTriangle::from_mesh_triangle(&mesh_triangle);
@@ -227,12 +229,24 @@ impl ComputePipeline {
             contents: bytemuck::cast_slice(&mesh_triangle_data),
             usage: wgpu::BufferUsages::STORAGE,
         });
-        return (sphere_buffer, cube_map_headers_buffer, cube_map_data_buffer, free_triangle_buffer, mesh_triangle_buffer);
-    }
+        let tree_node_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("TreeNode Buffer"),
+            contents: bytemuck::cast_slice(&tree_nodes),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+        let leaf_node_meshes = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("LeafNode Buffer"),
+            contents: bytemuck::cast_slice(&leaf_node_meshes),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+        let kd_tree_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("KDTree Buffer"),
+            contents: bytemuck::bytes_of(&kd_tree),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
 
 
-    fn create_aabb_buffer(device: &wgpu::Device, meshes: &Vec<mesh::Mesh>) {
-
+        return (sphere_buffer, cube_map_headers_buffer, cube_map_data_buffer, free_triangle_buffer, mesh_triangle_buffer, tree_node_buffer, leaf_node_meshes, kd_tree_buffer);
     }
 
 
@@ -258,8 +272,8 @@ impl ComputePipeline {
             ComputePipeline::create_mesh_buffers(device, &renderables.3);
         assert!(mesh_data_buffers.len() == GPU_NUM_MESH_BUFFERS, "Currently supports only {} mesh buffers", GPU_NUM_MESH_BUFFERS);
 
-        let (sphere_buffer, cube_map_headers_buffer, cube_map_data_buffer, free_triangle_buffer, mesh_triangle_buffer) = 
-            ComputePipeline::create_renderables_buffer(device, renderables);
+        let (sphere_buffer, cube_map_headers_buffer, cube_map_data_buffer, free_triangle_buffer, mesh_triangle_buffer, tree_node_buffer, leaf_node_meshes, kd_tree_buffer) = 
+            ComputePipeline::create_renderables_buffer(device, renderables, render_info);
 
         // Create bind group layout
         // For uniform buffers camera and render info
@@ -311,7 +325,7 @@ impl ComputePipeline {
             entries: &second_bind_group_layout,
         });
 
-        // For free_triangle, sphere, distant cube map
+        // For free_triangle, sphere, distant cube map, leaf node mesh array, KD Tree Nodes, and KD Tree aabb
         let third_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Compute Bind Group Layout 3"),
             entries: &[
@@ -350,6 +364,36 @@ impl ComputePipeline {
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform ,
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
@@ -460,6 +504,18 @@ impl ComputePipeline {
                 wgpu::BindGroupEntry {
                     binding: 3,
                     resource: free_triangle_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: leaf_node_meshes.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: tree_node_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: kd_tree_buffer.as_entire_binding(),
                 },
             ],
         });

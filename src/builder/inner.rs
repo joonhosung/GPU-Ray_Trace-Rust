@@ -7,7 +7,7 @@ use crate::scene::Member;
 use crate::elements::distant_cube_map;
 use crate::elements::triangle;
 use super::pr;
-use super::pr::Cam;
+// use super::pr::Cam;
 use keyframe::{Keyframe, AnimationSequence};
 use nalgebra::Vector3;
 // use keyframe::mint::Vector3;
@@ -110,7 +110,7 @@ impl VecInto<MemberTypes> {
     }
 
     // Extract all the locations of the members for each frame
-    pub fn extract_anim(self: VecInto<MemberTypes>, framerate: f32, cam: Cam) -> Vec<VecInto<MemberTypes>> {
+    pub fn extract_anim(self: VecInto<MemberTypes>, framerate: f32/*, cam: Cam*/) -> Vec<VecInto<MemberTypes>> {
         
         let max_time: f64 = self.get_last_timestamp() as f64;
         let time_per_frame: f64 = 1.0 / framerate as f64;

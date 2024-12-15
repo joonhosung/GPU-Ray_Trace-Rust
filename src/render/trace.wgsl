@@ -194,6 +194,22 @@ struct DynDiffSpec {
     roughness: f32
 }
 
+struct Aabb {
+    bounds: array<vec2<f32>, 3>,
+    paddding: vec2<u32>,
+}
+
+struct TreeNode {
+    axis: u32, 
+    split: f32, 
+    low: u32, 
+    high: u32, 
+    is_leaf: u32, 
+    leaf_mesh_index: u32, 
+    leaf_mesh_size: u32, 
+    padding: f32,
+}
+
 @group(0) @binding(0)
 var<uniform> camera: Camera;
 
@@ -235,6 +251,15 @@ var<storage, read> cube_map_faces: array<f32>;
 
 @group(2) @binding(3)
 var<storage, read> free_triangles: array<FreeTriangle>;
+
+@group(2) @binding(4)
+var<storage, read> leaf_nodes: array<u32>;
+
+@group(2) @binding(5)
+var<storage, read> tree_nodes: array<TreeNode>;
+
+@group(2) @binding(6)
+var<storage, read> kd_tree: array<Aabb>;
 
 // For better precision, each pixel is represented by 4 floats (RGBA)
 @group(3) @binding(0)
@@ -634,6 +659,14 @@ fn contains_valid_free_triangles() -> bool {
 fn get_free_triangle_intersect(ray: Ray, i: u32) -> TriangleHitResult {
     let triangle = free_triangles[i];
     return get_triangle_intersect(ray, triangle.vert1.xyz, triangle.vert2.xyz, triangle.vert3.xyz);
+}
+
+///////////////////////////////
+// KD Tree functions
+///////////////////////////////
+fn get_entry_exit() -> u32 {
+
+    return 0u;
 }
 
 ///////////////////////////////

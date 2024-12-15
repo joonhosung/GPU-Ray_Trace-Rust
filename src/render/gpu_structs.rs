@@ -1,7 +1,8 @@
 
+use nalgebra::Vector3;
 use serde::Deserialize;
 use bytemuck;
-use crate::accel::PlaneBounds;
+use crate::accel::{PlaneBounds, Aabb};
 use crate::elements::distant_cube_map::DistantCubeMap;
 use crate::elements::sphere::{Sphere, Coloring};
 use crate::material::{DivertRayMethod, UniformDiffuseSpec};
@@ -634,29 +635,97 @@ pub struct GPUAabb {
     pub padding: [f32; 2],
 }
 
-impl GPUAabb {
-    pub fn new(bounds: [PlaneBounds; 3]) -> Self {
-        Self {
-            bounds,
-            padding: [0.0; 2],
+impl GPUAabb {  
+    // We want the kd tree for the meshes only for the GPU mode. KD tree doesn't help much for the other primitives as we can't add as many
+    // So, the KD tree is its own primitive in a way like the Spheres and FreeTriangles
+    pub fn build_gpu_kd_tree(mesh_triangles: &Vec<MeshTriangle>, max_depth: usize) -> (GPUAabb, Vec<GPUTreeNode>, Vec<u32>){
+        let mut nodes = Vec::<GPUTreeNode>::new();
+        let mut leaf_node_meshes = Vec::<u32>::with_capacity(mesh_triangles.len()); // size of leaf_node_meshes is the same as the number of meshes
+        let aabbs: Vec<(usize, Aabb)> = mesh_triangles.iter().enumerate().filter_map(|(i, tri)| tri.give_aabb().map(|aabb| (i, aabb))).collect();
+
+        // Get the entire structure's kd tree
+        // We can consider separating the kd tree for each mesh member for better granularity.
+        let kd_tree_aabb = {
+            let min_axes: Vec<f32> = (0..3).map(
+                |a| (&aabbs).into_iter().map(|(_, aabb)| aabb.bounds[a].low)
+                    .reduce(|pl, l| pl.min(l))
+                    .unwrap()
+                )
+                .collect();
+            let max_axes: Vec<f32> = (0..3).map(
+                |a| (&aabbs).into_iter().map(|(_, aabb)| aabb.bounds[a].high)
+                    .reduce(|ph, h| ph.max(h))
+                    .unwrap()
+                )
+                .collect();
+            Aabb {
+                bounds: [
+                    PlaneBounds {low: min_axes[0], high: max_axes[0]},
+                    PlaneBounds {low: min_axes[1], high: max_axes[1]},
+                    PlaneBounds {low: min_axes[2], high: max_axes[2]},
+                ]
+            }
+        };
+        
+        // GPUTreeNode::new_branch_node();
+
+        // Finally, build the tree nodes
+        Self::build_gpu_tree_nodes(&aabbs, 0, max_depth, &mut nodes, &mut leaf_node_meshes, 0, false);
+
+        // Return the aabb of the entire kd-tree and its nodes
+        (GPUAabb{bounds: kd_tree_aabb.bounds, padding: [0.0; 2]}, nodes, leaf_node_meshes)
+
+    }
+
+    // Call this function recursively, but construct an easily accessible vector with it suitable for the GPU
+    pub fn build_gpu_tree_nodes(index_and_aabbs: &Vec<(usize, Aabb)>, cur_depth: usize, max_depth: usize, nodes: &mut Vec<GPUTreeNode>, leaf_node_meshes: &mut Vec<u32>, parent_node_idx: usize, high_node: bool){
+        // Iterate between each axis for the 
+        let axis = cur_depth % 3;
+
+        // Create a leaf node here
+        // TODO: If performance impact of the push is high, initialize nodes with maximum theoretical size before running so it won't take as long. 
+        if cur_depth > max_depth || index_and_aabbs.len() <= 1 {
+            nodes.push(GPUTreeNode::new_leaf_node(index_and_aabbs, leaf_node_meshes));
+        } else {
+            let aabbs: Vec<Aabb> = index_and_aabbs.iter().map(|(_,aabb)| *aabb).collect();
+            let split = (&aabbs).into_iter().map(|aabb| aabb.centroid()).sum::<Vector3<f32>>() / (aabbs.len() as f32);
+            
+            // Add new branch node
+            nodes.push(GPUTreeNode::new_branch_node(axis as u32,  split[axis]));
+        
+            let cur_idx = nodes.len() - 1;
+            
+            // Update the parent's node pointer index with the child node based on whether it's low or high 
+            // For head node, it'll get updated twice. Once when it updates its own low node, then for the action low node
+            if high_node {
+                nodes.get_mut(parent_node_idx).unwrap().high = cur_idx as u32;
+            } else {
+                nodes.get_mut(parent_node_idx).unwrap().low = cur_idx as u32;
+            }
+
+            let (low, high): (Vec<(usize, Aabb)>, Vec<(usize, Aabb)>) = {
+                let mut low: Vec<(usize, Aabb)> = vec![];
+                let mut high: Vec<(usize, Aabb)> = vec![];
+        
+                index_and_aabbs.iter().for_each(|(i, aabb)| {
+                    // this can handle case of element in both nodes
+                    if aabb.bounds[axis].high >= split[axis] {
+                        high.push((*i, *aabb));
+                    }
+                    if aabb.bounds[axis].low <= split[axis] {
+                        low.push((*i, *aabb));
+                    }
+                });
+                (low, high)
+            };
+
+            // Low recursive call
+            GPUAabb::build_gpu_tree_nodes(&low, cur_depth + 1, max_depth, nodes, leaf_node_meshes, cur_idx, false);
+
+            // High recursive call
+            GPUAabb::build_gpu_tree_nodes(&high, cur_depth + 1, max_depth, nodes, leaf_node_meshes, cur_idx, true);
         }
     }
-    
-    pub fn get_aabb_meshes(meshes: &Vec<MeshTriangle>) -> Vec<(usize, GPUAabb)> {
-        let index_with_aabb: Vec<(usize, GPUAabb)> = meshes.iter().enumerate().filter_map(|(i, tri)| tri.give_aabb().map(|aabb| (i, GPUAabb::new(aabb.bounds)))).collect();
-
-        index_with_aabb
-
-        // meshes.iter().next().unwrap().give_aabb()
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct GPUKdTree {
-    pub aabb: GPUAabb, // AABB box of the entire KD tree. If not hit, that means no triangle to intersect
-    pub head: GPUTreeNode, // The head node of the KD tree
-    // padding: [f32; 2],
 }
 
 #[repr(C)]
@@ -672,8 +741,44 @@ pub struct GPUTreeNode {
     pub _padding: f32,
 }
 
+impl GPUTreeNode {
+    pub fn new_leaf_node(aabbs: &Vec<(usize, Aabb)>, leaf_meshes: &mut Vec<u32>) -> Self {
+        let leaf_mesh_index = leaf_meshes.len() as u32; // Index where the leaf node's meshes start
+        let leaf_mesh_size = aabbs.len() as u32; // How many meshes need to be added in the leaf node
+
+        for (idx, _) in aabbs {
+            leaf_meshes.push(*idx as u32);
+        }
+        
+        Self {
+            axis: 0,
+            split: 0.0,
+            low: 0,
+            high: 0,
+            is_leaf: 1,      // Relevant for leaf nodes only
+            leaf_mesh_index, // Relevant for leaf nodes only
+            leaf_mesh_size,  // Relevant for leaf nodes only
+            _padding: 0.0,
+        }
+    }
+
+    pub fn new_branch_node(axis: u32, split: f32) -> Self {
+        // let low = nodes.len() as u32;
+        // let high = low + 1;
+        Self {
+            axis,
+            split,
+            low: 0,
+            high: 0,
+            is_leaf: 0,         //Irrelevant for branch nodes
+            leaf_mesh_index: 0, //Irrelevant for branch nodes
+            leaf_mesh_size: 0,  //Irrelevant for branch nodes
+            _padding: 0.0,     
+        }   
+    }
+}
+
 assert_gpu_aligned!(GPUTreeNode);
-assert_gpu_aligned!(GPUKdTree);
 assert_gpu_aligned!(GPUAabb);
 assert_gpu_aligned!(GPUCamera);
 assert_gpu_aligned!(GPURenderInfo);

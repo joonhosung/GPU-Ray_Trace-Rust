@@ -11,15 +11,15 @@ pub struct Cam {
     pub screen_width: f32, 
     pub screen_height: f32,
     pub lens_r: Option<f32>,
-    pub lookat: Option<Vector3<f32>>,
-    pub follow: Option<usize>,
+    // pub lookat: Option<Vector3<f32>>,
+    // pub follow: Option<usize>,
     view_eulers: [f32; 3], // Camera rotation based on up
 }
 
 impl From<Cam> for scene::Cam {
     fn from(c_: Cam) -> Self {
         let Cam {
-            d, o, up, screen_width, screen_height, lens_r, lookat, follow, view_eulers
+            d, o, up, screen_width, screen_height, lens_r,/*lookat, follow,*/  view_eulers
         } = c_;
         let [r, p, y] = view_eulers;
         let /*mut*/ rot;
@@ -69,21 +69,21 @@ impl From<Cam> for scene::Cam {
         
         // let vector = Vector3::<f32>::new(0.0,1.0,0.0);
         
-        println!("BEFORE d: {d:?} | up: {up:?}");
+        // println!("BEFORE d: {d:?} | up: {up:?}");
         let d = rot_use * d;
         let up = rot_use * up;
 
         // let o = o + rot.column(3).fixed_resize::<3,1>(0.0);
-        println!("d: {d} | up: {up} | o: {o}");
+        // println!("d: {d} | up: {up} | o: {o}");
         
 
         Self { d, o, up, screen_width, screen_height, lens_r }
     }   
 }
 
-impl Cam {
-    // Update the view_eulers to look at a certain point
-    fn look_at(self, pos: Vector3<f32>) {
-        // self.view_eulers = 
-    }
-}
+// impl Cam {
+//     // Update the view_eulers to look at a certain point
+//     fn look_at(self, pos: Vector3<f32>) {
+//         // self.view_eulers = 
+//     }
+// }

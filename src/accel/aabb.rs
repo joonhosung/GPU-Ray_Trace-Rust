@@ -3,6 +3,7 @@ use std::iter::zip;
 use nalgebra::Vector3;
 use serde::Deserialize;
 
+#[derive(Copy, Clone)]
 pub struct Aabb {
     pub bounds: [PlaneBounds; 3],
 }

@@ -40,7 +40,7 @@ impl Renderer {
     }
 
     pub fn consume_and_do(self) {
-        let start = Instant::now();
+        // let start = Instant::now();
         let use_gpu = self.scheme.render_info.use_gpu.unwrap_or(false);
         thread::spawn(move || {
             let renderer_inner = self.clone();
@@ -52,7 +52,7 @@ impl Renderer {
             if !use_gpu {
                 let skene = Scene { cam: renderer_inner.scheme.cam.into(), members: renderer_inner.scheme.scene_members.into() };
                 render_to_target_cpu(&self.target, &skene, || self.update_output(), &self.scheme.render_info, &iter_progress);
-                let elapsed = start.elapsed();
+                // let elapsed = start.elapsed();
                 // println!("Total time elapsed: {:.3?} | Average time per iter: {:.3?}", elapsed, elapsed/self.scheme.render_info.samps_per_pix as u32);
             }
             else {
@@ -140,7 +140,7 @@ impl Renderer {
         let mut scenes:  Vec<VecInto<MemberTypes>> = Vec::new();
         let updated_locations = self.scheme.clone();
         
-        for member_frame in self.scheme.clone().scene_members.extract_anim(updated_locations.render_info.framerate.unwrap(), updated_locations.cam) {
+        for member_frame in self.scheme.clone().scene_members.extract_anim(updated_locations.render_info.framerate.unwrap()/*, updated_locations.cam*/) {
             // println!("Extracted frame: {member_frame:?}");
             // let skene: Scene =  Scene { cam: updated_locations.clone().cam.into(), members: member_frame.into() };
             // scenes.push(skene);
