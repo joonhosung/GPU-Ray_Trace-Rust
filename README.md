@@ -8,7 +8,7 @@ Team members: Jackson Nie (1005282409) Jun Ho Sung (1004793262)
 <!-- omit in toc -->
 ## Table of Contents
 - [Motivation](#motivation)
-  - [Performance Testing](#performance-testing)
+  - [CPU Performance Testing](#cpu-performance-testing)
 - [Objectives](#objectives)
   - [Performance Optimization on GPU](#performance-optimization-on-gpu)
   - [Animation System Integration](#animation-system-integration)
@@ -23,12 +23,14 @@ Team members: Jackson Nie (1005282409) Jun Ho Sung (1004793262)
       - [Batch Processing System](#batch-processing-system)
       - [WGSL Shader Development](#wgsl-shader-development)
       - [Future Improvements](#future-improvements)
+      - [GPU Speedup Results](#gpu-speedup-results)
     - [2. Frame-by-frame Animation Rendering and mp4 Formatting](#2-frame-by-frame-animation-rendering-and-mp4-formatting)
       - [Animation Rendering Pipeline](#animation-rendering-pipeline)
       - [Future Improvements](#future-improvements-1)
     - [3. Rendering Information Delivery Improvements](#3-rendering-information-delivery-improvements)
 - [How to Use (Reproducibility)](#how-to-use-reproducibility)
   - [Supported Schemes](#supported-schemes)
+  - [Important GPU Note](#important-gpu-note)
   - [Scheme Configuration File Manual](#scheme-configuration-file-manual)
 - [Contributions](#contributions)
   
@@ -45,18 +47,29 @@ To summarize, through this project, we expect to:
 * Gain practical experience with Rust in high-performance computing
 * Implement new features that showcase the intriguing capabilities of the ray tracer
 
-### Performance Testing
-We conducted rendering tests across two distinct scenes using varying parameters to establish baseline performance metrics and justify our optimization efforts. Tests were performed on Windows 11 and MacOS systems to evaluate cross-platform performance. These benchmarks will serve as comparison points for measuring improvements after our optimizations.
+### CPU Performance Testing
+We conducted rendering tests across multiple distinct scenes to establish baseline performance metrics and justify/motivate our optimization efforts in this project. Tests were performed on a Windows 11 system to evaluate CPU performance. These benchmarks will serve as comparison points for measuring improvements after our GPU optimizations.
 
-// TODO: add new tests. Walled, outside spheres, and maybe spaceship
+| Scheme        | Samples/Pixel | Assured Depth | KD Tree Depth | CPU Runtime (Seconds) |
+|--------------|---------------|---------------|---------------|---------------------|
+| a380         | 10           | 5             | 17            | 21                  |
+| spaceship_r1 | 200          | 5             | 17            | 565                 |
+| biplane      | 200          | 5             | 17            | 293                 |
+| walled       | 20000        | 5             | 17            | 13200 (est, 0.66/sample) |
+
+Notes: 
+* Samples/Pixel were chosen such that the CPU and GPU runtime per sample reaches steady state.
+  * With low samples per pixel the run could finish instantly, making it hard to accurately record the time spent
+* `Walled` would take too long to finish all iterations on CPU, and thus the runtime is estimated based on the time it took per sample at steady state.
 
 Machine Specifications:
-| Specification | Jun Ho's Machine | Jackson's Machine |
-|--------------|------------------|-------------------|
-| CPU | AMD Ryzen 5800x | Apple M1 Pro |
-| GPU | AMD Radeon RX6800XT | Apple M1 Pro |
-| RAM | 32GB 3200MHz | 16GB |
-| OS | Windows 11 | Ventura 13.1 |
+
+| Component | Specification |
+|-----------|--------------|
+| CPU | AMD Ryzen 5800x |
+| GPU | AMD Radeon RX6800XT |
+| RAM | 32GB 3200MHz |
+| OS | Windows 11 |
 
 ## Objectives
 ### Performance Optimization on GPU
@@ -131,9 +144,23 @@ A custom WGSL shader was developed to perform the ray tracing computations:
 
 ##### Future Improvements
 * KD-tree implementation on GPU
-  * Flattening the KD-tree and traversing it sequentially proved to be more complicated than expected - this is the biggest future improvement feature as it can potentially speed up GPU rendering by another ~60x for complex scenes with > 200k meshes.
+  * Flattening the KD-tree and traversing it sequentially proved to be more complicated than expected - this is the biggest future improvement feature as it can potentially speed up GPU rendering by another ~60x for complex scenes with > 100,000 elements.
   * KD-tree buffers and GPU-side KD-tree traversal are implemented currently on branch `kd_tree`, and we are seeing significant speedup as expected. However, during the rendering phase, there is a calculation bug that we haven't yet identified, causing the final mesh render to be malformed.
-  
+
+##### GPU Speedup Results
+The following is a comprehensive comparison of GPU rendering to [CPU baseline](#cpu-performance-testing)
+
+| Scheme | Samples/Pixel | Assured Depth | KD Tree Depth | CPU Time (Seconds) | GPU Time (Seconds) | GPU Speedup |
+|--------|---------------|---------------|---------------|-------------------|-------------------|---------------|
+| a380 | 10 | 5 | 17 | 21 | 28 | 1.33x slower |
+| spaceship_r1 | 200 | 5 | 17 | 565 | 12 | 47x faster |
+| biplane | 200 | 5 | 17 | 293 | 22 | 13x faster |
+| walled | 20000 | 5 | 17 | 13200 (est, 0.66/sample) | 8 | 1650x faster |
+
+Some patterns that we noticed:
+* For schemes with large amount of elements like a380 (contains 127,749 elements), the GPU render time can be slower than CPU, because the CPU uses KD-tree to traverse the elements while the GPU uses a brute-force approach that traverses all elements present in the scene
+  * The CPU render time slows down logarithmically with respect to the number of elements present, whereas the GPU render time slows down linearly
+* For schemes with smaller amounts of elements like walled (contains 13 elements), the GPU render time is orders of magnitude faster than the CPU, since the KD-tree performance improvements are minimal in this case
 
 ----
 #### 2. Frame-by-frame Animation Rendering and mp4 Formatting
@@ -204,6 +231,12 @@ The following lists the supported schemes that do not require any extra action, 
 ./schemes/walled.yml
 ```
 
+### Important GPU Note
+Modern GPUs often have a timeout mechanism in-place, where the operating system will kill processes that use the GPU for extended amounts of times continuously. To mitigate this issue, we added a [batch processing system](#batch-processing-system) that splits the total number of samples into smaller batches, and falls back to CPU once the GPU has completed its assigned batch size. The CPU will re-launch the GPU compute pipeline until all batches have been completed.
+
+The size of each batch computed on the GPU can be toggled within the configuration file, via the `gpu_render_batch` parameter under `render_info`, alongside the `use_gpu` flag that toggles whether to use the GPU in the first place. If `use_gpu` is false, `gpu_render_batch` will make no difference.
+
+Currently this parameter must be toggled by the user manually, and the largest computable batch-size before GPU timeout varies across different machines. For example, we found that the upper-limit of batch size on M1 Pro is multiple times smaller than on AMD Radeon RX6800XT. Therefore, if GPU rendering results in a black or distorted output, the reason is likely due to the `gpu_render_batch` being too large such that the GPU times out before finishing the compute on the batch.
 
 ### Scheme Configuration File Manual
 This section describes the meaning and purpose of each field of scheme configuration files. This will be useful for users that would like to write their own scheme configurations.
@@ -221,7 +254,7 @@ render_info:
             assured_depth: 5 # Minimum ray bounces
             max_thres: 0.5   # Ray termination chance when bounce count > assured_depth
     use_gpu: true  # Enable to use GPU rendering
-    gpu_render_batch: 1000 # Required when GPU rendering. Iterations per compute shader run. samps_per_pix must be divisible by this.
+    gpu_render_batch: 1000 # Required for GPU rendering. Batch size per compute-pipeline run. samps_per_pix must be divisible by this.
     animation: false # Enable to render an animation based on scene_member keyframes
     framerate: 24 # Required when animation rendering is true
 ```
