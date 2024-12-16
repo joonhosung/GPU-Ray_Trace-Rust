@@ -121,7 +121,7 @@ impl VecInto<MemberTypes> {
             frames.push(VecInto::<MemberTypes>{0: Vec::<MemberTypes>::new()});
         }
 
-        println!("Extracting frames: \n\t Number of frames: {number_of_frames}\n\t Frame vec size: {}\n\t Time per frame {time_per_frame:.4?}\n\t Total time: {max_time}s", frames.len());
+        println!("Extracting frames: \n\t Number of frames: {number_of_frames}\n\t Time per frame {time_per_frame:.4?}s\n\t Total time: {max_time:.3}s");
         self.0.iter().for_each(|m| {            
             match m {
                 // Infer the locations of Sphere and Model translations for each frame

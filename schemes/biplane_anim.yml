@@ -1,7 +1,7 @@
 render_info:
-  width: 1200
-  height: 600
-  samps_per_pix: 1
+  width: 1920
+  height: 1080
+  samps_per_pix: 240
   kd_tree_depth: 17
   rad_info:  
     debug_single_ray: false
@@ -9,9 +9,10 @@ render_info:
     russ_roull_info:
       assured_depth: 5
       max_thres: 0.5
-  use_gpu: false
-  animation: false
-  framerate: 12
+  use_gpu: true
+  animation: true
+  gpu_render_batch: 6
+  framerate: 30
   
 cam:
   d: [0, 0, 4]
@@ -44,14 +45,18 @@ scene_members:
         - translation: [500, 300, 0] 
           euler_angles: [0.5, 4.4, -0.3]
           ease_type: "EaseInOutQuad"
-          time: 2
+          time: 3
+        - translation: [500, 1000, 0] 
+          euler_angles: [-1.5708, 4.4, -0.3]
+          ease_type: "EaseInCubic"
+          time: 6
 
 
-  - !Model
-    path: "../../assets/snowy_mountain_-_terrain/scene.gltf"
-    euler_angles: [0, 0, 0]
-    uniform_scale: 2000
-    translation: [-20, 100, 50]
+  # - !Model
+  #   path: "../../assets/snowy_mountain_-_terrain/scene.gltf"
+  #   euler_angles: [0, 0, 0]
+  #   uniform_scale: 2000
+  #   translation: [-20, 100, 50]
 
   #### skybox
   - !DistantCubeMap

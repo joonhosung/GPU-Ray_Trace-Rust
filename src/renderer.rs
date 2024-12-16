@@ -47,7 +47,7 @@ impl Renderer {
             let iter_progress = ProgressBar::new(self.scheme.render_info.samps_per_pix as u64);
             iter_progress.set_style(
                 ProgressStyle::default_bar()
-                .template("[{elapsed_precise}] {bar:80.cyan/blue} {pos}/{len} {msg}").unwrap()
+                .template("[{elapsed_precise}] {bar:80.cyan/80.blue} {pos}/{len} {msg}").unwrap()
             );
             if !use_gpu {
                 let skene = Scene { cam: renderer_inner.scheme.cam.into(), members: renderer_inner.scheme.scene_members.into() };
@@ -81,14 +81,14 @@ impl Renderer {
         let frame_progress = progressbars.add(ProgressBar::new(extracted_frames.len() as u64));
         frame_progress.set_style(
             ProgressStyle::default_bar()
-            .template("[{elapsed_precise}] {bar:80.cyan/blue} {pos}/{len} {msg}").unwrap()
+            .template("[{elapsed_precise}] {bar:80.cyan/80.blue} {pos}/{len} {msg}").unwrap()
         );
         frame_progress.enable_steady_tick(Duration::from_secs(1));
 
         let iter_progress = progressbars.add(ProgressBar::new(render_info.samps_per_pix as u64));
         iter_progress.set_style(
             ProgressStyle::default_bar()
-            .template("[{elapsed_precise}] {bar:80.green/cyan} {pos}/{len} {msg}").unwrap()
+            .template("[{elapsed_precise}] {bar:80.green/80.cyan} {pos}/{len} {msg}").unwrap()
         );
 
         for frame_members in extracted_frames {
@@ -130,7 +130,7 @@ impl Renderer {
         let mut scenes:  Vec<VecInto<MemberTypes>> = Vec::new();
         let updated_locations = self.scheme.clone();
         
-        for member_frame in self.scheme.clone().scene_members.extract_anim(updated_locations.render_info.framerate.unwrap()/*, updated_locations.cam*/) {
+        for member_frame in self.scheme.clone().scene_members.extract_anim(updated_locations.render_info.framerate.expect("Ensure the framerate is added for use_gpu!")/*, updated_locations.cam*/) {
             // println!("Extracted frame: {member_frame:?}");
             // let skene: Scene =  Scene { cam: updated_locations.clone().cam.into(), members: member_frame.into() };
             // scenes.push(skene);
