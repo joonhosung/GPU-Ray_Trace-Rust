@@ -633,7 +633,20 @@ impl GPUAabb {
 
         // Get the entire structure's kd tree
         // We can consider separating the kd tree for each mesh member for better granularity.
-        let kd_tree_aabb = {
+        let kd_tree_aabb = GPUAabb::give_aabb(&aabbs);
+        
+        // GPUTreeNode::new_branch_node();
+
+        // Finally, build the tree nodes
+        Self::build_gpu_tree_nodes(&aabbs, 0, max_depth, &mut nodes, &mut leaf_node_meshes, 0, false, kd_tree_aabb);
+
+        // Return the aabb of the entire kd-tree and its nodes
+        (kd_tree_aabb, nodes, leaf_node_meshes)
+
+    }
+
+    pub fn give_aabb(aabbs: &Vec<(usize, Aabb)>) -> GPUAabb {
+        let aabb = {
             let min_axes: Vec<f32> = (0..3).map(
                 |a| (&aabbs).into_iter().map(|(_, aabb)| aabb.bounds[a].low)
                     .reduce(|pl, l| pl.min(l))
@@ -654,26 +667,19 @@ impl GPUAabb {
                 ]
             }
         };
-        
-        // GPUTreeNode::new_branch_node();
 
-        // Finally, build the tree nodes
-        Self::build_gpu_tree_nodes(&aabbs, 0, max_depth, &mut nodes, &mut leaf_node_meshes, 0, false);
-
-        // Return the aabb of the entire kd-tree and its nodes
-        (GPUAabb::new(kd_tree_aabb), nodes, leaf_node_meshes)
-
+        GPUAabb::new(aabb)
     }
 
     // Call this function recursively, but construct an easily accessible vector with it suitable for the GPU
-    pub fn build_gpu_tree_nodes(index_and_aabbs: &Vec<(usize, Aabb)>, cur_depth: usize, max_depth: usize, nodes: &mut Vec<GPUTreeNode>, leaf_node_meshes: &mut Vec<u32>, parent_node_idx: usize, high_node: bool){
+    pub fn build_gpu_tree_nodes(index_and_aabbs: &Vec<(usize, Aabb)>, cur_depth: usize, max_depth: usize, nodes: &mut Vec<GPUTreeNode>, leaf_node_meshes: &mut Vec<u32>, parent_node_idx: usize, high_node: bool, curr_aabb: GPUAabb){
         // Iterate between each axis for the 
         let axis = cur_depth % 3;
 
         // Create a leaf node here
         // TODO: If performance impact of the push is high, initialize nodes with maximum theoretical size before running so it won't take as long. 
-        if cur_depth > max_depth || index_and_aabbs.len() <= 1 {
-            nodes.push(GPUTreeNode::new_leaf_node(index_and_aabbs, leaf_node_meshes));
+        if cur_depth >= max_depth || index_and_aabbs.len() <= 1 {
+            nodes.push(GPUTreeNode::new_leaf_node(axis as u32, index_and_aabbs, leaf_node_meshes, curr_aabb));
             let cur_idx = nodes.len() - 1;
             // add child index for the parent of this leaf node
             if high_node {
@@ -686,7 +692,7 @@ impl GPUAabb {
             let split = (&aabbs).into_iter().map(|aabb| aabb.centroid()).sum::<Vector3<f32>>() / (aabbs.len() as f32);
             
             // Add new branch node
-            nodes.push(GPUTreeNode::new_branch_node(axis as u32,  split[axis]));
+            nodes.push(GPUTreeNode::new_branch_node(axis as u32,  split[axis], curr_aabb));
         
             let cur_idx = nodes.len() - 1;
             
@@ -715,10 +721,14 @@ impl GPUAabb {
             };
 
             // Low recursive call
-            GPUAabb::build_gpu_tree_nodes(&low, cur_depth + 1, max_depth, nodes, leaf_node_meshes, cur_idx, false);
+            let mut low_aabb = curr_aabb;
+            low_aabb.bounds[axis][1] = split[axis];
+            GPUAabb::build_gpu_tree_nodes(&low, cur_depth + 1, max_depth, nodes, leaf_node_meshes, cur_idx, false, low_aabb);
 
             // High recursive call
-            GPUAabb::build_gpu_tree_nodes(&high, cur_depth + 1, max_depth, nodes, leaf_node_meshes, cur_idx, true);
+            let mut high_aabb = curr_aabb;
+            high_aabb.bounds[axis][0] = split[axis];
+            GPUAabb::build_gpu_tree_nodes(&high, cur_depth + 1, max_depth, nodes, leaf_node_meshes, cur_idx, true, high_aabb);
         }
     }
 }
@@ -726,6 +736,7 @@ impl GPUAabb {
 #[repr(C)]
 #[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GPUTreeNode {
+    pub _padding: f32,
     pub axis: u32, // The axis of this Node
     pub split: f32, // The split coordinate of this tree node. Used for finding whether to go in low or high tree node
     pub low: u32,  // Array index of lower Node. Acts like pointer
@@ -733,11 +744,11 @@ pub struct GPUTreeNode {
     pub is_leaf: u32, // Boolean value for whether this TreeNode is a leaf. If leaf, get intersections of mesh indices 
     pub leaf_mesh_index: u32, // Offset of triangle mesh indices array
     pub leaf_mesh_size: u32, // Number of triangle mesh indices within the leaf node
-    pub _padding: f32,
+    pub aabb: GPUAabb, // In GPU mode, we require the AABB of each tree node for the sequential KD tree traversal
 }
 
 impl GPUTreeNode {
-    pub fn new_leaf_node(aabbs: &Vec<(usize, Aabb)>, leaf_meshes: &mut Vec<u32>) -> Self {
+    pub fn new_leaf_node(axis: u32, aabbs: &Vec<(usize, Aabb)>, leaf_meshes: &mut Vec<u32>, aabb: GPUAabb) -> Self {
         let leaf_mesh_index = leaf_meshes.len() as u32; // Index where the leaf node's meshes start
         let leaf_mesh_size = aabbs.len() as u32; // How many meshes need to be added in the leaf node
 
@@ -746,21 +757,22 @@ impl GPUTreeNode {
         }
         
         Self {
-            axis: 0,
+            _padding: 0.0,
+            axis,
             split: 0.0,
             low: 0,
             high: 0,
             is_leaf: 1,      // Relevant for leaf nodes only
             leaf_mesh_index, // Relevant for leaf nodes only
             leaf_mesh_size,  // Relevant for leaf nodes only
-            _padding: 0.0,
+            aabb,
         }
     }
 
-    pub fn new_branch_node(axis: u32, split: f32) -> Self {
-        // let low = nodes.len() as u32;
-        // let high = low + 1;
+    pub fn new_branch_node(axis: u32, split: f32, aabb: GPUAabb) -> Self {
+        
         Self {
+            _padding: 0.0,     
             axis,
             split,
             low: 0,
@@ -768,7 +780,7 @@ impl GPUTreeNode {
             is_leaf: 0,         //Irrelevant for branch nodes
             leaf_mesh_index: 0, //Irrelevant for branch nodes
             leaf_mesh_size: 0,  //Irrelevant for branch nodes
-            _padding: 0.0,     
+            aabb,
         }   
     }
 }

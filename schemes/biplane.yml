@@ -2,7 +2,8 @@ render_info:
   width: 1200
   height: 600
   samps_per_pix: 5
-  kd_tree_depth: 17
+  gpu_render_batch: 1
+  kd_tree_depth: 2
   rad_info:  
     debug_single_ray: false
     dir_light_samp: false
@@ -35,11 +36,16 @@ scene_members:
     euler_angles: [0.5, -2.4, -0.3]
     uniform_scale: 1.8
     translation: [500, 300, 0]
-  - !Model
-    path: "../../../assets/snowy_mountain_-_terrain/scene.gltf"
-    euler_angles: [0, 0, 0]
-    uniform_scale: 2000
-    translation: [-20, 100, 50]
+  # - !Model
+  #   path: "../../../assets/cylinder/scene.gltf"
+  #   euler_angles: [0.5, -2.4, -0.3]
+  #   uniform_scale: 20
+  #   translation: [100, 100, -50]
+  # - !Model
+  #   path: "../../../assets/snowy_mountain_-_terrain/scene.gltf"
+  #   euler_angles: [0, 0, 0]
+  #   uniform_scale: 2000
+  #   translation: [-20, 100, 50]
 
   #### skybox
   - !DistantCubeMap

@@ -34,8 +34,8 @@ impl Model {
             }
         }
 
-        // println!("Model loaded from {}:", &self.path);
-        // println!("Total triangle count: {}", meshes.iter().map(|m| m.indices.iter().map(|idxs| idxs.len() as u32)).flatten().sum::<u32>());
+        println!("Model loaded from {}:", &self.path);
+        println!("Total triangle count: {}", meshes.iter().map(|m| m.indices.iter().map(|idxs| idxs.len() as u32)).flatten().sum::<u32>());
 
         meshes
     }

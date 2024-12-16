@@ -183,11 +183,18 @@ impl ComputePipeline {
         // let index_with_aabb: Vec<(usize, GPUAabb)> = GPUAabb::get_aabb_meshes(&mesh_triangles);
         // let leaf_node_meshes = Vec::<u32>::with_capacity(mesh_triangles.len());
         let (kd_tree, tree_nodes, leaf_node_meshes): (GPUAabb, Vec<GPUTreeNode>, Vec<u32>) = GPUAabb::build_gpu_kd_tree(&mesh_triangles, render_info.kd_tree_depth as usize);
+        // println!("Mesh Triangles {}", mesh_triangles.len());
+        // println!("Tree nodes: {tree_nodes:?}");
+        // println!("Leaf nodes {}: {leaf_node_meshes:?}", leaf_node_meshes.len());
+        // let mut sorted = leaf_node_meshes.clone();
+        // sorted.sort();
+        // println!("Leaf nodes sorted {}: {:?}", sorted.len(), sorted);
 
         for mesh_triangle in mesh_triangles {
             let gpu_mesh_triangle = GPUMeshTriangle::from_mesh_triangle(&mesh_triangle);
             mesh_triangle_data.push(gpu_mesh_triangle);
         }
+        // println!("{mesh_triangle_data:?}");
         // WGSL does not support empty buffers
         // create a dummy value with is_valid = 0 if buffer is empty
         if sphere_data.is_empty() {
