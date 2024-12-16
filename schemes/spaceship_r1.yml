@@ -1,16 +1,16 @@
 render_info:
   width: 1200
   height: 600
-  samps_per_pix: 100
-  gpu_render_batch: 5
-  kd_tree_depth: 15
+  samps_per_pix: 200
+  gpu_render_batch: 25
+  kd_tree_depth: 17
   rad_info:  
     debug_single_ray: false
     dir_light_samp: false
     russ_roull_info:
       assured_depth: 5
       max_thres: 0.5
-  use_gpu: false
+  use_gpu: true
   
 cam:
   d: [9, 0, 0]

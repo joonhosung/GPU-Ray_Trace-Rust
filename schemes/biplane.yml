@@ -1,8 +1,8 @@
 render_info:
   width: 1200
   height: 600
-  samps_per_pix: 10
-  gpu_render_batch: 5
+  samps_per_pix: 100
+  gpu_render_batch: 10
   kd_tree_depth: 17
   rad_info:  
     debug_single_ray: false
