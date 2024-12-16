@@ -10,6 +10,14 @@ Team members: Jackson Nie (1005282409) Jun Ho Sung (1004793262)
 - [Motivation](#motivation)
   - [Performance Testing](#performance-testing)
 - [Objectives](#objectives)
+- [Video Demo](#video-demo)
+- [Features](#features)
+  - [GPU Acceleration](#gpu-acceleration-implementation)
+  - [Animation](#frame-by-frame-animation-rendering-and-mp4-formatting)
+  - [Better Information Delivery](#rendering-information-delivery-improvements)
+- [How to use](#how-to-use-reproducibility)
+  - [Config Manual](#configuration-file-manual)
+- [Contributions](#contributions)
   
 
 ## Motivation
@@ -64,7 +72,7 @@ Machine Specifications:
         * Reduces the elements to test by splitting the scene into multiple sub-areas. The author mentioned that this yielded a ~60x speedup.
 
 ### Project Features
-#### GPU Acceleration Implementation
+1. #### GPU Acceleration Implementation
 The project implements GPU-accelerated ray tracing using the [WGPU](https://github.com/gfx-rs/wgpu) framework, enabling high-performance parallel rendering across multiple GPU backends.
 
 ##### Core Architecture
@@ -107,13 +115,24 @@ A custom WGSL shader was developed to perform the ray tracing computations:
 * Optimized ray-geometry intersection calculations to use native WGSL types and APIs
 * GPU-specific memory access patterns by tracing headers and tracking offsets
 * Support for all CPU-side features except KD tree traversal optimization
-    * Flattening the KD-tree and traversing it iteratively proved to be more complicated than expected - this is the biggest future improvement feature
+    * Flattening the KD-tree and traversing it sequencially proved to be more complicated than expected - this is the biggest future improvement feature
+    * KD-tree buffers and GPU-side KD-tree traversal are implemented as of now. However, during the rendering phase, there is some kind of a bug, causing the final mesh render to be malformed.
+----
+2. #### Frame-by-frame animation rendering and mp4 formatting
+Taking advantage of the offloaded rendering compute leaving more CPU availability, the project utilizes the [keyframe](https://github.com/HannesMann/keyframe) crate to generate seamless frames concurrently with the GPU. Utilizing open-source video encoding frameworks allows this project to not require any third-party programs to be installed.
 
-#### Frame-by-frame animation rendering and mp4 formatting
+##### Animation rendering pipeline
+1. Keyframes and desired frame rate are added by the user to the .yml configuration
+2. Each frame is parsed, then added to the animation sequence
+3. Based on the frame number, the animation sequence is advanced by the timeframe between each frame
+4. If in the GPU rendering mode, the extrapolated frames are added to a queue, which the GPU concurrently consumes to generate each frame
+5. After every frame is rendered, the [OpenH264](https://github.com/ralfbiedert/openh264-rs) crate is used to encode the video, then muxed out using the [minimp4](https://github.com/darkskygit/minimp4.rs) crate.
 
+##### Future improvements - Point the camera
+A camera "lookat" feature to point at and follow certain objects was explored. However, the transformation matrix generated resulted in incorrect rotations most of the time. Adding this feature is a great opportunity to achieve more exciting animations.
 
-
-#### Rendering information delivery improvements
+----
+3. #### Rendering information delivery improvements
 Progress tracker bars have been added to better tell the progress of the run for static image rendering:
 ``` bash
 PS E:\Rust Labs\project\Ray_Trace-Rust\target\release> .\ray_trace_rust ..\..\schemes\outside_spheres.yml
@@ -215,4 +234,15 @@ scene_members:
 
 ## Contributions
 - Jun Ho: 
-- Jackson:
+    - Animation feature
+    - Ray-tracing algorithm
+    - Sphere rendering
+    - GPU KD-tree
+
+- Jackson: 
+    - WGPU pipeline 
+    - GPU Buffer formulation
+    - Mesh rendering
+    - TODO: Jackson to add waaaay more!
+
+... and helping each other with countless debug sessions 😊
