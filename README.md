@@ -22,11 +22,12 @@ Team members: Jackson Nie (1005282409) Jun Ho Sung (1004793262)
       - [Compute Pipeline Implementation](#compute-pipeline-implementation)
       - [Batch Processing System](#batch-processing-system)
       - [WGSL Shader Development](#wgsl-shader-development)
-    - [2. Frame-by-frame animation rendering and mp4 formatting](#2-frame-by-frame-animation-rendering-and-mp4-formatting)
-      - [Animation rendering pipeline](#animation-rendering-pipeline)
-      - [Future improvements - Point the camera](#future-improvements---point-the-camera)
-    - [3. Rendering information delivery improvements](#3-rendering-information-delivery-improvements)
-- [How To Use (Reproducibility)](#how-to-use-reproducibility)
+      - [Future Improvements](#future-improvements)
+    - [2. Frame-by-frame Animation Rendering and mp4 Formatting](#2-frame-by-frame-animation-rendering-and-mp4-formatting)
+      - [Animation Rendering Pipeline](#animation-rendering-pipeline)
+      - [Future Improvements](#future-improvements-1)
+    - [3. Rendering Information Delivery Improvements](#3-rendering-information-delivery-improvements)
+- [How to Use (Reproducibility)](#how-to-use-reproducibility)
   - [Supported Schemes](#supported-schemes)
   - [Scheme Configuration File Manual](#scheme-configuration-file-manual)
 - [Contributions](#contributions)
@@ -127,24 +128,30 @@ A custom WGSL shader was developed to perform the ray tracing computations:
 * Optimized ray-geometry intersection calculations to use native WGSL types and APIs
 * GPU-specific memory access patterns by tracing headers and tracking offsets
 * Support for all CPU-side features except KD tree traversal optimization
-    * Flattening the KD-tree and traversing it sequencially proved to be more complicated than expected - this is the biggest future improvement feature
-    * KD-tree buffers and GPU-side KD-tree traversal are implemented as of now. However, during the rendering phase, there is some kind of a bug, causing the final mesh render to be malformed.
+
+##### Future Improvements
+* KD-tree implementation on GPU
+  * Flattening the KD-tree and traversing it sequentially proved to be more complicated than expected - this is the biggest future improvement feature as it can potentially speed up GPU rendering by another ~60x for complex scenes with > 200k meshes.
+  * KD-tree buffers and GPU-side KD-tree traversal are implemented currently on branch `kd_tree`, and we are seeing significant speedup as expected. However, during the rendering phase, there is a calculation bug that we haven't yet identified, causing the final mesh render to be malformed.
+  
+
 ----
-#### 2. Frame-by-frame animation rendering and mp4 formatting
+#### 2. Frame-by-frame Animation Rendering and mp4 Formatting
 Taking advantage of the offloaded rendering compute leaving more CPU availability, the project utilizes the [keyframe](https://github.com/HannesMann/keyframe) crate to generate seamless frames concurrently with the GPU. Utilizing open-source video encoding frameworks allows this project to not require any third-party programs to be installed.
 
-##### Animation rendering pipeline
+##### Animation Rendering Pipeline
 1. Keyframes and desired frame rate are added by the user to the .yml configuration
 2. Each frame is parsed, then added to the animation sequence
 3. Based on the frame number, the animation sequence is advanced by the timeframe between each frame
 4. If in the GPU rendering mode, the extrapolated frames are added to a queue, which the GPU concurrently consumes to generate each frame
 5. After every frame is rendered, the [OpenH264](https://github.com/ralfbiedert/openh264-rs) crate is used to encode the video, then muxed out using the [minimp4](https://github.com/darkskygit/minimp4.rs) crate.
 
-##### Future improvements - Point the camera
-A camera "lookat" feature to point at and follow certain objects was explored. However, the transformation matrix generated resulted in incorrect rotations most of the time. Adding this feature is a great opportunity to achieve more exciting animations.
+##### Future Improvements
+* Pointing the Camera
+    * A camera "lookat" feature to point at and follow certain objects was explored. However, the transformation matrix generated resulted in incorrect rotations most of the time. Adding this feature is a great opportunity to achieve more exciting animations.
 
 ----
-#### 3. Rendering information delivery improvements
+#### 3. Rendering Information Delivery Improvements
 Progress tracker bars have been added to better tell the progress of the run for static image rendering:
 ``` bash
 PS E:\Rust Labs\project\Ray_Trace-Rust\target\release> .\ray_trace_rust ..\..\schemes\outside_spheres.yml
@@ -166,7 +173,7 @@ Extracted 134 frames
 ```
 <img src="./info/images/progress_bar.png" width="800" />
 
-## How To Use (Reproducibility)
+## How to Use (Reproducibility)
 The program execution is as simple as running `cargo run --release <path_to_yml>`, while ensuring all the paths inside each `scene_members` are valid. If you're using the provided example schemes, the file paths are organized such that it works inside the `./target/release` directory.
 
 The `--release` flag is required for maximum performance!
