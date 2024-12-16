@@ -147,6 +147,12 @@ A custom WGSL shader was developed to perform the ray tracing computations:
   * Flattening the KD-tree and traversing it sequentially proved to be more complicated than expected - this is the biggest future improvement feature as it can potentially speed up GPU rendering by another ~60x for complex scenes with > 100,000 elements.
   * KD-tree buffers and GPU-side KD-tree traversal are implemented currently on branch `kd_tree`, and we are seeing significant speedup as expected. However, during the rendering phase, there is a calculation bug that we haven't yet identified, causing the final mesh render to be malformed.
 
+* Batch processing improvements
+  * Currently the batch processing procedure performs the following operations sequentially - falls back to CPU when the batch is finished; reads back the intermediate results; renders intermediate results to the ui; launches the compute pipeline for the next batch
+    * This can be a potential performance bottleneck if the batch compute time is comparable to the read-back and render time
+  * To mitigate this, we can potentially double-buffer the GPU output buffer, and create a separate thread that performs the read-back and rendering while the main thread immediately re-launches the compute pipeline for the next batch
+    * This way, we can hide the read-back and render latency behind the compute time of the next batch
+
 ##### GPU Speedup Results
 The following is a comprehensive comparison of GPU rendering to [CPU baseline](#cpu-performance-testing)
 
