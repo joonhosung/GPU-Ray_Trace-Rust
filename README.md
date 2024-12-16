@@ -10,13 +10,25 @@ Team members: Jackson Nie (1005282409) Jun Ho Sung (1004793262)
 - [Motivation](#motivation)
   - [Performance Testing](#performance-testing)
 - [Objectives](#objectives)
+  - [Performance Optimization on GPU](#performance-optimization-on-gpu)
+  - [Animation System Integration](#animation-system-integration)
 - [Video Demo](#video-demo)
 - [Features](#features)
-  - [GPU Acceleration](#gpu-acceleration-implementation)
-  - [Animation](#frame-by-frame-animation-rendering-and-mp4-formatting)
-  - [Better Information Delivery](#rendering-information-delivery-improvements)
-- [How to use](#how-to-use-reproducibility)
-  - [Config Manual](#configuration-file-manual)
+  - [Pre-existing Features](#pre-existing-features)
+  - [Project Features](#project-features)
+    - [1. GPU Acceleration Implementation](#1-gpu-acceleration-implementation)
+      - [Core Architecture](#core-architecture)
+      - [Data Structure Adaptation](#data-structure-adaptation)
+      - [Compute Pipeline Implementation](#compute-pipeline-implementation)
+      - [Batch Processing System](#batch-processing-system)
+      - [WGSL Shader Development](#wgsl-shader-development)
+    - [2. Frame-by-frame animation rendering and mp4 formatting](#2-frame-by-frame-animation-rendering-and-mp4-formatting)
+      - [Animation rendering pipeline](#animation-rendering-pipeline)
+      - [Future improvements - Point the camera](#future-improvements---point-the-camera)
+    - [3. Rendering information delivery improvements](#3-rendering-information-delivery-improvements)
+- [How To Use (Reproducibility)](#how-to-use-reproducibility)
+  - [Supported Schemes](#supported-schemes)
+  - [Scheme Configuration File Manual](#scheme-configuration-file-manual)
 - [Contributions](#contributions)
   
 
@@ -72,7 +84,7 @@ Machine Specifications:
         * Reduces the elements to test by splitting the scene into multiple sub-areas. The author mentioned that this yielded a ~60x speedup.
 
 ### Project Features
-1. #### GPU Acceleration Implementation
+#### 1. GPU Acceleration Implementation
 The project implements GPU-accelerated ray tracing using the [WGPU](https://github.com/gfx-rs/wgpu) framework, enabling high-performance parallel rendering across multiple GPU backends.
 
 ##### Core Architecture
@@ -118,7 +130,7 @@ A custom WGSL shader was developed to perform the ray tracing computations:
     * Flattening the KD-tree and traversing it sequencially proved to be more complicated than expected - this is the biggest future improvement feature
     * KD-tree buffers and GPU-side KD-tree traversal are implemented as of now. However, during the rendering phase, there is some kind of a bug, causing the final mesh render to be malformed.
 ----
-2. #### Frame-by-frame animation rendering and mp4 formatting
+#### 2. Frame-by-frame animation rendering and mp4 formatting
 Taking advantage of the offloaded rendering compute leaving more CPU availability, the project utilizes the [keyframe](https://github.com/HannesMann/keyframe) crate to generate seamless frames concurrently with the GPU. Utilizing open-source video encoding frameworks allows this project to not require any third-party programs to be installed.
 
 ##### Animation rendering pipeline
@@ -132,7 +144,7 @@ Taking advantage of the offloaded rendering compute leaving more CPU availabilit
 A camera "lookat" feature to point at and follow certain objects was explored. However, the transformation matrix generated resulted in incorrect rotations most of the time. Adding this feature is a great opportunity to achieve more exciting animations.
 
 ----
-3. #### Rendering information delivery improvements
+#### 3. Rendering information delivery improvements
 Progress tracker bars have been added to better tell the progress of the run for static image rendering:
 ``` bash
 PS E:\Rust Labs\project\Ray_Trace-Rust\target\release> .\ray_trace_rust ..\..\schemes\outside_spheres.yml
@@ -154,25 +166,41 @@ Extracted 134 frames
 ```
 <img src="./info/images/progress_bar.png" width="800" />
 
-## How to use (Reproducibility)
-The program should be as simple as running `cargo run --release <path_to_yml>`, while ensuring all the paths inside each `scene_members` are valid. If you're using the provided example schemes, the file paths are organized such that it works inside the `./target/release` directory.
+## How To Use (Reproducibility)
+The program execution is as simple as running `cargo run --release <path_to_yml>`, while ensuring all the paths inside each `scene_members` are valid. If you're using the provided example schemes, the file paths are organized such that it works inside the `./target/release` directory.
 
 The `--release` flag is required for maximum performance!
 ```bash
 cargo build --release
 cd ./target/release/ 
-./ray_trace_rust ../../schemes/james_webb.yml
+./ray_trace_rust ../../schemes/a380.yml
 ```
 
 After you run the executable, the results will be outputted in your current directory as `./animation.mp4` or `./render.png`.
 Specifically for the animation, each frame is saved in `./anim_frames`
 
-If you want to run it without the UI showing the progress, run: 
+If you want to run it without the UI showing the intermediates, run: 
 ```bash
-./ray_trace_rust ../../schemes/james_webb.yml no_ui
+./ray_trace_rust ../../schemes/a380.yml no_ui
 ```
 
-### Configuration file manual
+### Supported Schemes
+All scheme files are stored under `./schemes`. A couple of these schemes require external `.gltf` files to work - the ray tracer extracts the meshes from these `.gltf` files, and traces the rays across these meshes. Since these `.gltf` files have a non-trivial size, only a couple are included in this project under `./assets`, and therefore some schemes will require manual download of `.gltf`s to work. 
+
+The following lists the supported schemes that do not require any extra action, and can be run directly with `./ray_trace_rust ../../schemes/<scheme-name>.yml`
+```
+./schemes/a380.yml
+./schemes/biplane.yml
+./schemes/outside_spheres.yml
+./schemes/spaceship_r1.yml
+./schemes/triangles.yml
+./schemes/walled.yml
+```
+
+
+### Scheme Configuration File Manual
+This section describes the meaning and purpose of each field of scheme configuration files. This will be useful for users that would like to write their own scheme configurations.
+
 The .yml file must include one `render_info`, one `cam`, and any number of `scene_members` (above 0, of course):
 - `render_info`
 ```yaml
