@@ -23,8 +23,8 @@ fn main() {
         None => true,
     };
 
-    let paff = Path::new(&path);
-    let mut file = File::open(&paff).expect("file boss???");
+    let yaml_file_path = Path::new(&path);
+    let mut file = File::open(&yaml_file_path).expect(format!("Couldn't open file {}", yaml_file_path.display()).as_str());
     let mut scheme_dat = String::new();
     file.read_to_string(&mut scheme_dat).unwrap();
 
@@ -63,10 +63,10 @@ fn main() {
                                     .rate_control_mode(openh264::encoder::RateControlMode::Off);
 
         // OpenH264 encoder
-        let mut encoder = Encoder::with_api_config(openh264::OpenH264API::from_source(), encoder_config).expect("??????");
+        let mut encoder = Encoder::with_api_config(openh264::OpenH264API::from_source(), encoder_config).expect("OpenH264 encoder failed to initialize");
         let mut vid_buf = Vec::new();
 
-        let mut frames_dir: Vec<String> = fs::read_dir("./anim_frames").expect("frames not found??").map(|d| d.unwrap().file_name().into_string().unwrap()).collect();
+        let mut frames_dir: Vec<String> = fs::read_dir("./anim_frames").expect("Animation frames not found").map(|d| d.unwrap().file_name().into_string().unwrap()).collect();
         // println!("Sorted paths: {frames_dir:?}");
 
         frames_dir.sort_by(|a, b| Ord::cmp(&a.split(".").next().unwrap().parse::<usize>().unwrap() , &b.split(".").next().unwrap().parse::<usize>().unwrap()));
@@ -74,8 +74,8 @@ fn main() {
         // println!("Sorted paths after sort: {frames_dir:?}");
 
         for frame_path in frames_dir {
-            // println!("Image Name: ./anim_frames/{frame_path}");
-            let image = open(format!("./anim_frames/{frame_path}")).expect("Couldn't open image as RGBaU8?");
+            let frame_path = format!("./anim_frames/{frame_path}");
+            let image = open(&frame_path).expect(format!("Couldn't open image {} as RGBaU8", frame_path).as_str());
 
             let h264_slice = openh264::formats::RgbaSliceU8::new(image.as_rgba8().unwrap(), (region_width as usize, region_height as usize));
             let yuv_buffer = YUVBuffer::from_rgb_source(h264_slice);

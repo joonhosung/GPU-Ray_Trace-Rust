@@ -28,19 +28,19 @@ cam:
 
 scene_members:
   - !Model
-    path: "../../../assets/jwst_james_webb_space_telescope/scene.gltf"
+    path: "../../assets/jwst_james_webb_space_telescope/scene.gltf"
     euler_angles: [0.3, 0.7, 0]
     uniform_scale: 1
     translation: [-1, 1, -1]
 
   #### skybox
   - !DistantCubeMap
-    neg_x: ["../../../assets/milky/_nx.png", -1.0, 1.0]
-    pos_x: ["../../../assets/milky/_px.png", 1.0, -1.0]
-    neg_y: ["../../../assets/milky/_ny.png", -1.0, 1.0]
-    pos_y: ["../../../assets/milky/_py.png", -1.0, 1.0]
-    neg_z: ["../../../assets/milky/_py.png", 1.0, -1.0]
-    pos_z: ["../../../assets/milky/_pz.png", 1.0, -1.0]
+    neg_x: ["../../assets/milky/_nx.png", -1.0, 1.0]
+    pos_x: ["../../assets/milky/_px.png", 1.0, -1.0]
+    neg_y: ["../../assets/milky/_ny.png", -1.0, 1.0]
+    pos_y: ["../../assets/milky/_py.png", -1.0, 1.0]
+    neg_z: ["../../assets/milky/_py.png", 1.0, -1.0]
+    pos_z: ["../../assets/milky/_pz.png", 1.0, -1.0]
 
   #### lights
   # - !Sphere

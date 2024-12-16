@@ -1,7 +1,8 @@
 render_info:
   width: 1200
   height: 600
-  samps_per_pix: 100000
+  samps_per_pix: 100
+  gpu_render_batch: 5
   kd_tree_depth: 15
   rad_info:  
     debug_single_ray: false
@@ -9,6 +10,7 @@ render_info:
     russ_roull_info:
       assured_depth: 5
       max_thres: 0.5
+  use_gpu: false
   
 cam:
   d: [0, 0, -6]
@@ -27,19 +29,19 @@ cam:
 
 scene_members:
   - !Model
-    path: "../../../assets/space_shuttle/scene.gltf"
+    path: "../../assets/space_shuttle/scene.gltf"
     euler_angles: [0, -3.14, 0]
     uniform_scale: 0.5
     translation: [0, 0, 0]
 
   #### skybox
   - !DistantCubeMap
-    neg_x: ["../../../assets/skybox/right.jpg", 1.0, 1.0]
-    pos_x: ["../../../assets/skybox/left.jpg", 1.0, -1.0]
-    neg_y: ["../../../assets/skybox/bottom.jpg", 1.0, 1.0]
-    pos_y: ["../../../assets/skybox/top.jpg", -1.0, 1.0]
-    neg_z: ["../../../assets/skybox/back.jpg", -1.0, 1.0]
-    pos_z: ["../../../assets/skybox/front.jpg", -1.0, -1.0]
+    neg_x: ["../../assets/skybox/right.jpg", 1.0, 1.0]
+    pos_x: ["../../assets/skybox/left.jpg", 1.0, -1.0]
+    neg_y: ["../../assets/skybox/bottom.jpg", 1.0, 1.0]
+    pos_y: ["../../assets/skybox/top.jpg", -1.0, 1.0]
+    neg_z: ["../../assets/skybox/back.jpg", -1.0, 1.0]
+    pos_z: ["../../assets/skybox/front.jpg", -1.0, -1.0]
 
   #### lights
   # - !Sphere

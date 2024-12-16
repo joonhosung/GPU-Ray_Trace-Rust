@@ -15,6 +15,7 @@ use indicatif::ProgressBar;
 use rayon::prelude::*;
 
 pub fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene: &GPUScene, update_hook: F, render_info: &RenderInfo, iter_progress: &ProgressBar) {
+    iter_progress.set_message("Transferring Data and Creating GPU Pipeline...");
     let batch_size = render_info.gpu_render_batch.unwrap();
     let num_batches =  render_info.samps_per_pix / batch_size;
     let mut gpu_state = GPUState::new();
@@ -24,23 +25,24 @@ pub fn render_to_target_gpu<F : Fn() -> ()>(render_target: &RenderTarget, scene:
     gpu_state.create_compute_pipeline(&gpu_camera, &gpu_render_info, &render_target, &scene.elements);
     
     let mut results: Vec<f32> = vec![0.0; (render_target.canv_width * render_target.canv_height * 4) as usize];
-    let mut sample_count: f32 = 0.0;
+    let mut iter_count: f32 = 0.0;
     
     for _ in 0..num_batches {
+        iter_progress.set_message(format!("GPU Frame Progress..."));
         gpu_state.dispatch_compute_pipeline();
         gpu_state.submit_compute_pipeline();
         let iter_results: Vec<f32> = gpu_state.block_and_get_single_result();
-        zip(results.iter_mut(), iter_results).for_each(|(res, iter)| {*res = (iter + (*res * sample_count)) / (sample_count + 1.0)});
+        zip(results.iter_mut(), iter_results).for_each(|(res, iter)| {*res = (iter + (*res * iter_count)) / (iter_count + 1.0)});
 
         render_target.buff_mux.lock().iter_mut()
                 .zip(&results)
                 .for_each(|(target, result)| *target = (result.clamp(0.0, 1.0) * 255.0 + 0.5).trunc() as u8);
         
-        sample_count += 1.0;
+        iter_count += 1.0;
         update_hook();        
         iter_progress.inc(batch_size as u64);
-        iter_progress.set_message(format!("GPU Frame Progress..."));
     }
+    iter_progress.set_message("GPU Render Complete!");
     iter_progress.finish();
 }
 
@@ -66,8 +68,8 @@ pub fn render_to_target_cpu<F : Fn() -> ()>(render_target: &RenderTarget, scene:
         .collect();
     let kdtree = KdTree::build(&elems_and_aabbs, &unconditional, render_info.kd_tree_depth);
 
-    // let num_samples = 100000;
     for _ in 0..render_info.samps_per_pix {
+        iter_progress.set_message(format!("CPU Frame Progress..."));
         target.par_iter_mut()
             .enumerate()
             .map(|(i, pix)| (render_target.chunk_to_pix(i.try_into().unwrap()), pix))
@@ -84,7 +86,7 @@ pub fn render_to_target_cpu<F : Fn() -> ()>(render_target: &RenderTarget, scene:
         sample_count += 1.0;
 
         render_target.buff_mux.lock()
-            .par_chunks_mut(4) // pixels have rgba values, so chunk by 4
+            .par_chunks_mut(4)
             .zip(&target)
             .for_each(|(pix, tar)| {
                 pix.copy_from_slice(&rgb_f_to_u8(tar));
@@ -93,13 +95,9 @@ pub fn render_to_target_cpu<F : Fn() -> ()>(render_target: &RenderTarget, scene:
 
         update_hook();
         iter_progress.inc(1);
-        iter_progress.set_message(format!("CPU Frame Progress..."));// elapsed:{:?}", start.elapsed()));
-        // println!("render iteration {}: {:?}", r_it, start.elapsed());
     }
-    // let elapsed = start.elapsed();
+    iter_progress.set_message("CPU Render Complete!");
     iter_progress.finish();
-    // println!("Finished frame! Elapsed: {elapsed:?} | Average per iter: {:.3?}\n", (elapsed/render_info.samps_per_pix as u32));
-    // println!("elapsed {:?}", elapsed);
 }
 
 

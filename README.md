@@ -90,7 +90,7 @@ Ray traced rendering for realistic-looking images, all written in the Rust langu
         - MESHES! 💥💥💥 - did you remember where your `.gltf` file is?
             ```yaml
                 - !Model
-                    path: "../../../assets/discovery_space_shuttle/scene.gltf"
+                    path: "../../assets/discovery_space_shuttle/scene.gltf"
                     # transforms to apply to model in the scene
                     euler_angles: [0, 1.5, 0]
                     uniform_scale: 1
@@ -100,12 +100,12 @@ Ray traced rendering for realistic-looking images, all written in the Rust langu
             ```yaml
                 - !DistantCubeMap
                     # last two numbers are scalings to texture coordinates
-                    neg_x: ["../../../assets/skybox/right.jpg", 1.0, 1.0]
-                    pos_x: ["../../../assets/skybox/left.jpg", 1.0, -1.0]
-                    neg_y: ["../../../assets/skybox/bottom.jpg", 1.0, 1.0]
-                    pos_y: ["../../../assets/skybox/top.jpg", -1.0, 1.0]
-                    neg_z: ["../../../assets/skybox/back.jpg", -1.0, 1.0]
-                    pos_z: ["../../../assets/skybox/front.jpg", -1.0, -1.0]
+                    neg_x: ["../../assets/skybox/right.jpg", 1.0, 1.0]
+                    pos_x: ["../../assets/skybox/left.jpg", 1.0, -1.0]
+                    neg_y: ["../../assets/skybox/bottom.jpg", 1.0, 1.0]
+                    pos_y: ["../../assets/skybox/top.jpg", -1.0, 1.0]
+                    neg_z: ["../../assets/skybox/back.jpg", -1.0, 1.0]
+                    pos_z: ["../../assets/skybox/front.jpg", -1.0, -1.0]
             ```
 3. Run the executable with the yaml path as the first argument:
     ```bash

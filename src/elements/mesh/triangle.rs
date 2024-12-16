@@ -142,7 +142,7 @@ impl GimmeNorm for NormFromMesh<'_> {
                 // let n_info = self.mesh.norm_info[prim_idx].as_ref().unwrap();
                 let norm_coord = tex_coord_from_bary(self.mesh, &n_info.coords, barycentric, self.index);
 
-                let norm = n_info.scale * self.normal_transform * self.mesh.normal_maps[prim_idx].as_ref().expect("no normal map???").get_pixel(norm_coord.x, norm_coord.y);
+                let norm = n_info.scale * self.normal_transform * self.mesh.normal_maps[prim_idx].as_ref().expect("Normal map does not exist").get_pixel(norm_coord.x, norm_coord.y);
                 norm.normalize()
             },
             None => { // just interpolate the normal vector from given
@@ -169,7 +169,7 @@ impl GimmeRgb for RgbFromMesh<'_> {
         match &self.mesh.rgb_info[prim_idx].coords {
             Some(tex_coords) => {
                 let tex_coord = tex_coord_from_bary(self.mesh, &tex_coords, barycentric, self.index);
-                let pixel = self.mesh.textures[prim_idx].as_ref().expect("no textures???").get_pixel(tex_coord.x, tex_coord.y);
+                let pixel = self.mesh.textures[prim_idx].as_ref().expect("Textures does not exist").get_pixel(tex_coord.x, tex_coord.y);
                 self.mesh.rgb_info[prim_idx].factor.component_mul(&pixel)
             },
             None => self.mesh.rgb_info[prim_idx].factor,
@@ -193,7 +193,7 @@ impl DivertsRay for DivertsRayFromMesh<'_> {
         let (metalness, roughness) = match &self.mesh.metal_rough[prim_idx].coords {
             Some(coords) => {
                 let mr_coord = tex_coord_from_bary(self.mesh, coords, barycentric, self.index);
-                let mr_val = self.mesh.metal_rough_maps[prim_idx].as_ref().expect("no metal rough map???").get_pixel(mr_coord.x, mr_coord.y);
+                let mr_val = self.mesh.metal_rough_maps[prim_idx].as_ref().expect("Metal rough map does not exist").get_pixel(mr_coord.x, mr_coord.y);
                 (mr_val[2] * self.mesh.metal_rough[prim_idx].metal, mr_val[1] * self.mesh.metal_rough[prim_idx].rough)
             },
             None => (self.mesh.metal_rough[prim_idx].metal, self.mesh.metal_rough[prim_idx].rough),

@@ -597,12 +597,12 @@ fn get_sphere_intersect(ray: Ray, i: u32) -> f32 {
     if discr > 0.0 { 
         let offset = -dir;
         let thing = sqrt(discr);
-        let intersect_dist_a = offset - thing;
-        let intersect_dist_b = offset + thing;
+        let intersect_dist_a = offset + thing;
+        let intersect_dist_b = offset - thing;
 
-        if (intersect_dist_a > MIN_INTERSECT) && (intersect_dist_a < intersect_dist_b) {
+        if intersect_dist_a > 0f && (intersect_dist_a < intersect_dist_b) {
             return intersect_dist_a;
-        } else if (intersect_dist_b > MIN_INTERSECT) && (intersect_dist_a > intersect_dist_b) {
+        } else if intersect_dist_b > 0f && (intersect_dist_b < intersect_dist_a) {
             return intersect_dist_b;
         }
         

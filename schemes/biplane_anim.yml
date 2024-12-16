@@ -31,7 +31,7 @@ cam:
 
 scene_members:
   - !Model
-    path: "../../../assets/airplane_biplane/scene.gltf"
+    path: "../../assets/airplane_biplane/scene.gltf"
     euler_angles: [0.5, -2.4, -0.3]
     uniform_scale: 1.8
     translation: [500, 300, 0]
@@ -48,19 +48,19 @@ scene_members:
 
 
   - !Model
-    path: "../../../assets/snowy_mountain_-_terrain/scene.gltf"
+    path: "../../assets/snowy_mountain_-_terrain/scene.gltf"
     euler_angles: [0, 0, 0]
     uniform_scale: 2000
     translation: [-20, 100, 50]
 
   #### skybox
   - !DistantCubeMap
-    neg_x: ["../../../assets/skybox/right.jpg", 1.0, 1.0]
-    pos_x: ["../../../assets/skybox/left.jpg", 1.0, -1.0]
-    neg_y: ["../../../assets/skybox/bottom.jpg", 1.0, 1.0]
-    pos_y: ["../../../assets/skybox/top.jpg", -1.0, 1.0]
-    neg_z: ["../../../assets/skybox/back.jpg", -1.0, 1.0]
-    pos_z: ["../../../assets/skybox/front.jpg", -1.0, -1.0]
+    neg_x: ["../../assets/skybox/right.jpg", 1.0, 1.0]
+    pos_x: ["../../assets/skybox/left.jpg", 1.0, -1.0]
+    neg_y: ["../../assets/skybox/bottom.jpg", 1.0, 1.0]
+    pos_y: ["../../assets/skybox/top.jpg", -1.0, 1.0]
+    neg_z: ["../../assets/skybox/back.jpg", -1.0, 1.0]
+    pos_z: ["../../assets/skybox/front.jpg", -1.0, -1.0]
 
   #### lights
   # - !Sphere

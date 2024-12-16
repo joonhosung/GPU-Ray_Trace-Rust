@@ -52,8 +52,6 @@ impl Renderer {
             if !use_gpu {
                 let skene = Scene { cam: renderer_inner.scheme.cam.into(), members: renderer_inner.scheme.scene_members.into() };
                 render_to_target_cpu(&self.target, &skene, || self.update_output(), &self.scheme.render_info, &iter_progress);
-                // let elapsed = start.elapsed();
-                // println!("Total time elapsed: {:.3?} | Average time per iter: {:.3?}", elapsed, elapsed/self.scheme.render_info.samps_per_pix as u32);
             }
             else {
                 let batch_size = self.scheme.render_info.gpu_render_batch.expect("gpu_render_batch needs to be set for GPU mode!");
@@ -103,9 +101,6 @@ impl Renderer {
                 
                 let region_width_inner = region_width.clone();
                 let region_height_inner = region_height.clone();
-                // let ui_mode_inner = ui_mode.clone();
-                
-                // let (buffer_renderer, render_out) = Renderer::new(region_width_inner, region_height_inner, frame_scheme);
                 
                 let buf: Vec<u8> = [0, 0, 0, 0].repeat((region_width_inner * region_height_inner).try_into().unwrap());
                 let target = RenderTarget {
@@ -113,8 +108,6 @@ impl Renderer {
                     canv_width: region_width_inner, 
                     canv_height: region_height_inner,
                 };
-                // Send to normal renderer for each frame
-                // buffer_renderer.consume_and_do();
                 
                 if use_gpu{
                     let gpu_scene = GPUScene { cam: cam.into(), elements: frame_members.extract_concrete_types() };
@@ -123,12 +116,9 @@ impl Renderer {
                     let skene = Scene { cam: cam.into(), members: frame_members.into() };
                     render_to_target_cpu(&target, &skene, || tx.send(target.buff_mux.lock().clone()).expect("cannot send??"), &render_info, &iter_progress_inner);
                 }
-                // println!("WITHIN THREAD: Finished outputting frame #{frame_num}");
-                // Render receiver
             });
             
             ui_util::io_on_render_out(render_out, (region_width.clone(), region_height.clone()), ui_mode.clone(), Some(format!("anim_frames/{frame_num}.png")));
-            // println!("Finished outputting frame #{frame_num}");
             frame_num += 1;
             frame_progress.inc(1);
             frame_progress.set_message(format!("Rendering frames... Previous frame: {:.3?}", start.elapsed()));

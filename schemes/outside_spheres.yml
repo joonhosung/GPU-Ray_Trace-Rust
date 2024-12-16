@@ -26,12 +26,12 @@ cam:
 scene_members:
   #### skybox
   - !DistantCubeMap
-    neg_x: ["../../../assets/skybox/right.jpg", 1.0, 1.0]
-    pos_x: ["../../../assets/skybox/left.jpg", 1.0, -1.0]
-    neg_y: ["../../../assets/skybox/bottom.jpg", 1.0, 1.0]
-    pos_y: ["../../../assets/skybox/top.jpg", -1.0, 1.0]
-    neg_z: ["../../../assets/skybox/back.jpg", -1.0, 1.0]
-    pos_z: ["../../../assets/skybox/front.jpg", -1.0, -1.0]
+    neg_x: ["../../assets/skybox/right.jpg", 1.0, 1.0]
+    pos_x: ["../../assets/skybox/left.jpg", 1.0, -1.0]
+    neg_y: ["../../assets/skybox/bottom.jpg", 1.0, 1.0]
+    pos_y: ["../../assets/skybox/top.jpg", -1.0, 1.0]
+    neg_z: ["../../assets/skybox/back.jpg", -1.0, 1.0]
+    pos_z: ["../../assets/skybox/front.jpg", -1.0, -1.0]
     
   #### elements
   - !Sphere

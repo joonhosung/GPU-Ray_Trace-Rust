@@ -180,10 +180,14 @@ impl ComputePipeline {
             free_triangle_data.push(gpu_free_triangle);
         }
         let mesh_triangles = create_mesh_triangles_from_meshes(meshes);
+        let mut kd_tree = GPUAabb::get_empty();
+        let mut tree_nodes: Vec<GPUTreeNode> = vec![GPUTreeNode::get_empty()];
+        let mut leaf_node_meshes: Vec<u32> = vec![0];
         // let index_with_aabb: Vec<(usize, GPUAabb)> = GPUAabb::get_aabb_meshes(&mesh_triangles);
         // let leaf_node_meshes = Vec::<u32>::with_capacity(mesh_triangles.len());
-        let (kd_tree, tree_nodes, leaf_node_meshes): (GPUAabb, Vec<GPUTreeNode>, Vec<u32>) = GPUAabb::build_gpu_kd_tree(&mesh_triangles, render_info.kd_tree_depth as usize);
-
+        if !mesh_triangles.is_empty() {
+            (kd_tree, tree_nodes, leaf_node_meshes) = GPUAabb::build_gpu_kd_tree(&mesh_triangles, render_info.kd_tree_depth as usize);
+        }
         for mesh_triangle in mesh_triangles {
             let gpu_mesh_triangle = GPUMeshTriangle::from_mesh_triangle(&mesh_triangle);
             mesh_triangle_data.push(gpu_mesh_triangle);

@@ -617,6 +617,12 @@ pub struct GPUAabb {
 }
 
 impl GPUAabb {  
+    pub fn get_empty() -> Self {
+        Self {
+            bounds: [PlaneBounds {low: 0.0, high: 0.0}; 3],
+            padding: [0.0; 2],
+        }
+    }
     // We want the kd tree for the meshes only for the GPU mode. KD tree doesn't help much for the other primitives as we can't add as many
     // So, the KD tree is its own primitive in a way like the Spheres and FreeTriangles
     pub fn build_gpu_kd_tree(mesh_triangles: &Vec<MeshTriangle>, max_depth: usize) -> (GPUAabb, Vec<GPUTreeNode>, Vec<u32>){
@@ -710,7 +716,7 @@ impl GPUAabb {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Copy, Clone, Default, Deserialize, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GPUTreeNode {
     pub axis: u32, // The axis of this Node
     pub split: f32, // The split coordinate of this tree node. Used for finding whether to go in low or high tree node
@@ -723,6 +729,12 @@ pub struct GPUTreeNode {
 }
 
 impl GPUTreeNode {
+    pub fn get_empty() -> Self {
+        Self {
+            ..Default::default()
+        }
+    }
+    
     pub fn new_leaf_node(aabbs: &Vec<(usize, Aabb)>, leaf_meshes: &mut Vec<u32>) -> Self {
         let leaf_mesh_index = leaf_meshes.len() as u32; // Index where the leaf node's meshes start
         let leaf_mesh_size = aabbs.len() as u32; // How many meshes need to be added in the leaf node
