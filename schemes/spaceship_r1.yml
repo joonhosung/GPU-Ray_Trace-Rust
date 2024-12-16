@@ -38,12 +38,12 @@ scene_members:
 
   #### skybox
   - !DistantCubeMap
-    neg_x: ["../../assets/milky/_nx.png", -1.0, 1.0]
-    pos_x: ["../../assets/milky/_px.png", 1.0, -1.0]
-    neg_y: ["../../assets/milky/_ny.png", -1.0, 1.0]
-    pos_y: ["../../assets/milky/_py.png", -1.0, 1.0]
-    neg_z: ["../../assets/milky/_py.png", 1.0, -1.0]
-    pos_z: ["../../assets/milky/_pz.png", 1.0, -1.0]
+    neg_x: ["../../assets/cubemap_images/_nx.png", -1.0, 1.0]
+    pos_x: ["../../assets/cubemap_images/_px.png", 1.0, -1.0]
+    neg_y: ["../../assets/cubemap_images/_ny.png", -1.0, 1.0]
+    pos_y: ["../../assets/cubemap_images/_py.png", -1.0, 1.0]
+    neg_z: ["../../assets/cubemap_images/_py.png", 1.0, -1.0]
+    pos_z: ["../../assets/cubemap_images/_pz.png", 1.0, -1.0]
 
   #### lights
   # - !Sphere
