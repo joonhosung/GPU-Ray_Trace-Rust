@@ -33,6 +33,8 @@ Team members: Jackson Nie (1005282409) Jun Ho Sung (1004793262)
   - [Important GPU Note](#important-gpu-note)
   - [Scheme Configuration File Manual](#scheme-configuration-file-manual)
 - [Contributions](#contributions)
+  - [Jun Ho](#jun-ho)
+  - [Jackson](#jackson)
   
 
 ## Motivation
@@ -307,16 +309,31 @@ scene_members:
 ```
 
 ## Contributions
-- Jun Ho: 
-    - Animation feature
-    - Ray-tracing algorithm
-    - Sphere rendering
-    - GPU KD-tree
+### Jun Ho
+  - Animation feature
+  - Ray-tracing algorithm
+  - Sphere rendering
+  - GPU KD-tree
 
-- Jackson: 
-    - WGPU pipeline 
-    - GPU Buffer formulation
-    - Mesh rendering
-    - TODO: Jackson to add waaaay more!
+### Jackson
+  - WGPU pipeline 
+    - Bootstrapped compute pipeline creation, dispatch and submit
+      - Added buffer binding logic to bind buffers in various bind groups to be used by the GPU
+      - Initialized wgsl shader and compute pipeline logic to support buffer bindings and pixel-parallel execution architecture
+      - Wrote the CPU read-back API that creates a staging buffer in shared memory to enable data read-back from GPU for display
+      - Book-keeped all the information to enable direct compute-pipeline re-dispatch without needing any reconstruction
 
-... and helping each other with countless debug sessions 😊
+  - GPU buffer formulation
+    - Wrote the GPU-compatible version of all CPU ray tracing elements including camera, render info, spheres, cube maps, free triangles, mesh triangles and mesh
+      - Ensured that all data structures are properly aligned
+      - Split the data structures into separate bind groups ordered by relavance and update frequency for better performance
+    - Designed and implemented serialization of cube map images and subsequent headers to enable correct GPU indexing
+    - Designed and implemented serialization of mesh into a stream of f32s on GPU, and matching headers to enable GPU shader modules to index into the serialized mesh buffer
+  
+  - Shader APIs for ray tracing
+    - Wrote shader module that handles ray tracing of distant cube maps to display the environment of the scene in the final output
+    - Implemented free-triangle tracing that allows for ray-tracing on free-triangle elements
+    - Implemented mesh tracing that utilizes the headers and serialized mesh buffers to extract relavent information for tracing rays that intersect with meshes.
+
+
+... and helped each other in countless debug sessions 😊
