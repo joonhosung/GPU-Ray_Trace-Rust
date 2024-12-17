@@ -24,7 +24,7 @@ Team members: Jackson Nie (1005282409) Jun Ho Sung (1004793262)
       - [WGSL Shader Development](#wgsl-shader-development)
       - [Future Improvements](#future-improvements)
       - [GPU Speedup Results](#gpu-speedup-results)
-      - [Quality benchmark](#quality-benchmark)
+      - [Quality Benchmark](#quality-benchmark)
     - [2. Frame-by-frame Animation Rendering and mp4 Formatting](#2-frame-by-frame-animation-rendering-and-mp4-formatting)
       - [Animation Rendering Pipeline](#animation-rendering-pipeline)
       - [Future Improvements](#future-improvements-1)
@@ -173,10 +173,10 @@ Some patterns that we noticed:
   * The CPU render time slows down logarithmically with respect to the number of elements present, whereas the GPU render time slows down linearly
 * For schemes with smaller amounts of elements like walled (contains 13 elements), the GPU render time is orders of magnitude faster than the CPU, since the KD-tree performance improvements are minimal in this case
 
-##### Quality benchmark
-This was measured using the GPU render time and allowing the CPU to run for that time
+##### Quality Benchmark
+The following was assessed by measuring the GPU render time and allowing the CPU to run for an equivalent duration. The results show that, within the same time frame, GPU quality is generally superior to that of the CPU.
 
-**GPU results:**
+**GPU results**
 <p float="middle">
     <img src="./info/images_gpu/a380.png" width="400" />
     <img src="./info/images_gpu/spaceship_r1.png" width="400" />
@@ -184,7 +184,7 @@ This was measured using the GPU render time and allowing the CPU to run for that
     <img src="./info/images_gpu/walled.png" width="400" />
 </p>
 
-**CPU results quality comparion (using same time the GPU took to run):**
+**CPU results quality comparion (using same time the GPU took to run)**
 <p float="middle">
     <img src="./info/images_cpu_comparison/a380.png" width="400" />
     <img src="./info/images_cpu_comparison/spaceship_r1.png" width="400" />
