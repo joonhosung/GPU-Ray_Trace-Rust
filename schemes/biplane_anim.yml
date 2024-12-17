@@ -11,8 +11,10 @@ render_info:
       max_thres: 0.5
   use_gpu: true
   animation: true
+  anim_pipeline_depth: 5
   gpu_render_batch: 6
   framerate: 30
+
   
 cam:
   d: [0, 0, 4]

@@ -59,6 +59,8 @@ We conducted rendering tests across multiple distinct scenes to establish baseli
 | biplane      | 200          | 5             | 17            | 293                 |
 | walled       | 20000        | 5             | 17            | 13200 (est, 0.66/sample) |
 
+info\images_gpu\a380.png
+
 Notes: 
 * Samples/Pixel were chosen such that the CPU and GPU runtime per sample reaches steady state.
   * With low samples per pixel the run could finish instantly, making it hard to accurately record the time spent
@@ -89,7 +91,7 @@ Machine Specifications:
 
 
 ## Video Demo
-<https://www.youtube.com/watch?v=YOUTUBE_VIDEO_ID_HERE>
+<https://drive.google.com/file/d/1bS5vTqQWkzjp0NbZPnAC-7ZY11SB3MiE/view?usp=sharing>
 
 ## Features
 ### Pre-existing Features
@@ -165,6 +167,25 @@ The following is a comprehensive comparison of GPU rendering to [CPU baseline](#
 | biplane | 200 | 5 | 17 | 293 | 22 | 13x faster |
 | walled | 20000 | 5 | 17 | 13200 (est, 0.66/sample) | 8 | 1650x faster |
 
+##### Quality benchmark
+This was measured using the GPU render time and allowing the CPU to run for that time
+
+**GPU results:**
+<p float="middle">
+    <img src="./info/images_gpu/a380.png" width="500" />
+    <img src="./info/images_gpu/spaceship_r1.png" width="500" />
+    <img src="./info/images_gpu/biplane.png" width="500" />
+    <img src="./info/images_gpu/walled.png" width="500" />
+</p>
+
+**CPU results quality comparion (using same time the GPU took to run):**
+<p float="middle">
+    <img src="./info/images_cpu_comparison/a380.png" width="500" />
+    <img src="./info/images_cpu_comparison/spaceship_r1.png" width="500" />
+    <img src="./info/images_cpu_comparison/biplane.png" width="500" />
+    <img src="./info/images_cpu_comparison/walled.png" width="500" />
+</p>
+
 Some patterns that we noticed:
 * For schemes with large amount of elements like a380 (contains 127,749 elements), the GPU render time can be slower than CPU, because the CPU uses KD-tree to traverse the elements while the GPU uses a brute-force approach that traverses all elements present in the scene
   * The CPU render time slows down logarithmically with respect to the number of elements present, whereas the GPU render time slows down linearly
@@ -184,6 +205,15 @@ Taking advantage of the offloaded rendering compute leaving more CPU availabilit
 ##### Future Improvements
 * Pointing the Camera
     * A camera "lookat" feature to point at and follow certain objects was explored. However, the transformation matrix generated resulted in incorrect rotations most of the time. Adding this feature is a great opportunity to achieve more exciting animations.
+
+<p align="center">
+  <video src="info\videos\animation_plane.mp4" controls="controls" style="max-width: 730px;">
+  </video>
+</p>
+<p align="center">
+  <video src="info\videos\bounce_animation.mp4" controls="controls" style="max-width: 300px;">
+  </video>
+</p>
 
 ----
 #### 3. Rendering Information Delivery Improvements
@@ -206,7 +236,9 @@ Extracted 134 frames
 
 [00:00:03] ██████████████████████████████████████████████████████████████████████████████░░ 9800/10000 GPU Frame Progress...
 ```
+<p align="center">
 <img src="./info/images/progress_bar.png" width="800" />
+</p>
 
 ## How to Use (Reproducibility)
 The program execution is as simple as running `cargo run --release <path_to_yml>`, while ensuring all the paths inside each `scene_members` are valid. If you're using the provided example schemes, the file paths are organized such that it works inside the `./target/release` directory.
@@ -310,10 +342,24 @@ scene_members:
 
 ## Contributions
 ### Jun Ho
-  - Animation feature
-  - Ray-tracing algorithm
-  - Sphere rendering
-  - GPU KD-tree
+  - Animation pipeline
+    - Entire animation feature 
+
+  - Progress bars
+    - Added progress bars that show relevant messages for render iterations, frame, and scene preload progress
+
+  - WGPU pipeline
+    - Decouple scene generation for GPU animation mode for pre-loading work into memory
+
+  - GPU buffer formulation
+    - KD-tree buffer for GPU generation
+  
+  - Shader APIs for ray tracing
+    - Ray-tracing algorithm (Light-bouncing and bending/reflecting)
+    - Random number generation with updated seeds kept in a buffer for each shader pass
+    - Sphere collision for ray-tracing 
+    - (Not fully working) KD-tree parsing and collision 
+
 
 ### Jackson
   - WGPU pipeline 
