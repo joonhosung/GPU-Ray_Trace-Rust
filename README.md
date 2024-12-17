@@ -53,7 +53,7 @@ To summarize, through this project, we expect to:
 ### CPU Performance Testing
 We conducted rendering tests across multiple distinct scenes to establish baseline performance metrics and justify/motivate our optimization efforts in this project. Tests were performed on a Windows 11 system to evaluate CPU performance. These benchmarks will serve as comparison points for measuring improvements after our GPU optimizations.
 
-| Scheme        | Samples/Pixel | Assured Depth | KD Tree Depth | CPU Runtime (Seconds) |
+| Scheme        | Samples/Pixel | Assured Depth | KD-tree Depth | CPU Runtime (Seconds) |
 |--------------|---------------|---------------|---------------|---------------------|
 | a380         | 10           | 5             | 17            | 21                  |
 | spaceship_r1 | 200          | 5             | 17            | 565                 |
@@ -145,7 +145,7 @@ A custom WGSL shader was developed to perform the ray tracing computations:
 * Flattened any recursive CPU algorithms to a non-recursive implementation
 * Optimized ray-geometry intersection calculations to use native WGSL types and APIs
 * GPU-specific memory access patterns by tracing headers and tracking offsets
-* Support for all CPU-side features except KD tree traversal optimization
+* Support for all CPU-side features except KD-tree traversal optimization
 
 ##### Future Improvements
 * KD-tree implementation on GPU
@@ -161,7 +161,7 @@ A custom WGSL shader was developed to perform the ray tracing computations:
 ##### GPU Speedup Results
 The following is a comprehensive comparison of GPU rendering to [CPU baseline](#cpu-performance-testing)
 
-| Scheme | Samples/Pixel | Assured Depth | KD Tree Depth | CPU Time (Seconds) | GPU Time (Seconds) | GPU Speedup |
+| Scheme | Samples/Pixel | Assured Depth | KD-tree Depth | CPU Time (Seconds) | GPU Time (Seconds) | GPU Speedup |
 |--------|---------------|---------------|---------------|-------------------|-------------------|---------------|
 | a380 | 10 | 5 | 17 | 21 | 28 | 1.33x slower |
 | spaceship_r1 | 200 | 5 | 17 | 565 | 12 | 47x faster |
@@ -184,7 +184,7 @@ The following was assessed by measuring the GPU render time and allowing the CPU
     <img src="./info/images_gpu/walled.png" width="400" />
 </p>
 
-**CPU results quality comparion (using same time the GPU took to run)**
+**CPU results quality comparison (using same time the GPU took to run)**
 <p float="middle">
     <img src="./info/images_cpu_comparison/a380.png" width="400" />
     <img src="./info/images_cpu_comparison/spaceship_r1.png" width="400" />
@@ -384,7 +384,7 @@ scene_members:
   - Shader APIs for ray tracing
     - Wrote shader module that handles ray tracing of distant cube maps to display the environment of the scene in the final output
     - Implemented free-triangle tracing that allows for ray-tracing on free-triangle elements
-    - Implemented mesh tracing that utilizes the headers and serialized mesh buffers to extract relavent information for tracing rays that intersect with meshes.
+    - Implemented mesh tracing that utilizes the headers and serialized mesh buffers to extract relevant information for tracing rays that intersect with meshes.
 
 
 ... and helped each other in countless debug sessions 😊
