@@ -172,18 +172,18 @@ This was measured using the GPU render time and allowing the CPU to run for that
 
 **GPU results:**
 <p float="middle">
-    <img src="./info/images_gpu/a380.png" width="500" />
-    <img src="./info/images_gpu/spaceship_r1.png" width="500" />
-    <img src="./info/images_gpu/biplane.png" width="500" />
-    <img src="./info/images_gpu/walled.png" width="500" />
+    <img src="./info/images_gpu/a380.png" width="400" />
+    <img src="./info/images_gpu/spaceship_r1.png" width="400" />
+    <img src="./info/images_gpu/biplane.png" width="400" />
+    <img src="./info/images_gpu/walled.png" width="400" />
 </p>
 
 **CPU results quality comparion (using same time the GPU took to run):**
 <p float="middle">
-    <img src="./info/images_cpu_comparison/a380.png" width="500" />
-    <img src="./info/images_cpu_comparison/spaceship_r1.png" width="500" />
-    <img src="./info/images_cpu_comparison/biplane.png" width="500" />
-    <img src="./info/images_cpu_comparison/walled.png" width="500" />
+    <img src="./info/images_cpu_comparison/a380.png" width="400" />
+    <img src="./info/images_cpu_comparison/spaceship_r1.png" width="400" />
+    <img src="./info/images_cpu_comparison/biplane.png" width="400" />
+    <img src="./info/images_cpu_comparison/walled.png" width="400" />
 </p>
 
 Some patterns that we noticed:
