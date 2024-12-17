@@ -24,6 +24,7 @@ Team members: Jackson Nie (1005282409) Jun Ho Sung (1004793262)
       - [WGSL Shader Development](#wgsl-shader-development)
       - [Future Improvements](#future-improvements)
       - [GPU Speedup Results](#gpu-speedup-results)
+      - [Quality benchmark](#quality-benchmark)
     - [2. Frame-by-frame Animation Rendering and mp4 Formatting](#2-frame-by-frame-animation-rendering-and-mp4-formatting)
       - [Animation Rendering Pipeline](#animation-rendering-pipeline)
       - [Future Improvements](#future-improvements-1)
@@ -167,6 +168,11 @@ The following is a comprehensive comparison of GPU rendering to [CPU baseline](#
 | biplane | 200 | 5 | 17 | 293 | 22 | 13x faster |
 | walled | 20000 | 5 | 17 | 13200 (est, 0.66/sample) | 8 | 1650x faster |
 
+Some patterns that we noticed:
+* For schemes with large amount of elements like a380 (contains 127,749 elements), the GPU render time can be slower than CPU, because the CPU uses KD-tree to traverse the elements while the GPU uses a brute-force approach that traverses all elements present in the scene
+  * The CPU render time slows down logarithmically with respect to the number of elements present, whereas the GPU render time slows down linearly
+* For schemes with smaller amounts of elements like walled (contains 13 elements), the GPU render time is orders of magnitude faster than the CPU, since the KD-tree performance improvements are minimal in this case
+
 ##### Quality benchmark
 This was measured using the GPU render time and allowing the CPU to run for that time
 
@@ -185,11 +191,6 @@ This was measured using the GPU render time and allowing the CPU to run for that
     <img src="./info/images_cpu_comparison/biplane.png" width="400" />
     <img src="./info/images_cpu_comparison/walled.png" width="400" />
 </p>
-
-Some patterns that we noticed:
-* For schemes with large amount of elements like a380 (contains 127,749 elements), the GPU render time can be slower than CPU, because the CPU uses KD-tree to traverse the elements while the GPU uses a brute-force approach that traverses all elements present in the scene
-  * The CPU render time slows down logarithmically with respect to the number of elements present, whereas the GPU render time slows down linearly
-* For schemes with smaller amounts of elements like walled (contains 13 elements), the GPU render time is orders of magnitude faster than the CPU, since the KD-tree performance improvements are minimal in this case
 
 ----
 #### 2. Frame-by-frame Animation Rendering and mp4 Formatting
