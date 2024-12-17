@@ -132,6 +132,9 @@ impl Renderer {
                     }
                     scene_gen_progress.set_message("Generating scenes for each frame...");
                 }
+                scene_gen_progress.finish_with_message("Done generating each frame scene!");
+                // When we're done, just loop until the rendering is done
+                while done_frame_rx.recv().expect("Unexpected err") != frame_num {};
             });
 
             loop {
@@ -157,7 +160,7 @@ impl Renderer {
                 });
                 
                 ui_util::io_on_render_out(render_out, (region_width.clone(), region_height.clone()), ui_mode.clone(), Some(format!("anim_frames/{frame_num}.png")));
-                done_frame_tx.send(frame_num).expect("frame done sending didn't work");
+                let _ = done_frame_tx.send(frame_num);
                 frame_progress.inc(1);
                 frame_progress.set_message(format!("Rendering frames... Previous frame #{frame_num}: {:.3?}", start.elapsed()));
                 if frame_num == total_frame_num {break;}
