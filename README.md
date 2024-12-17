@@ -36,6 +36,7 @@ Team members: Jackson Nie (1005282409) Jun Ho Sung (1004793262)
 - [Contributions](#contributions)
   - [Jun Ho](#jun-ho)
   - [Jackson](#jackson)
+- [Open Sourcing](#open-sourcing)
   
 
 ## Motivation
@@ -388,3 +389,7 @@ scene_members:
 
 
 ... and helped each other in countless debug sessions 😊
+
+
+## Open Sourcing
+Since this project is forked from an existing repository, GitHub does not currently allow changing its visibility. As a future enhancement, we plan to update the project repository architecture and open-source this project.
