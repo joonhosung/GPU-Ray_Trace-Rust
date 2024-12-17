@@ -225,17 +225,21 @@ PS E:\Rust Labs\project\Ray_Trace-Rust\target\release> .\ray_trace_rust ..\..\sc
 ```
 And animation rendering: 
 ``` bash
-PS E:\Rust Labs\project\Ray_Trace-Rust\target\release> .\ray_trace_rust ..\..\schemes\bounce_anim.yml
+PS E:\Rust Labs\project\Ray_Trace-Rust\target\release> .\ray_trace_rust ..\..\schemes\bounce_anim.yml 
 Extracting frames: 
          Number of frames: 134
          Time per frame 0.0417s
          Total time: 5.600s
 Extracted 134 frames
+anim_pipeline_depth: 50 frames will be generated in advance
 
-[00:00:13] █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 3/134 Rendering frames... Previous frame: 3.347s
+[00:00:07] █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 2/134 Rendering frames... Previous frame #2: 2.501s
 
-[00:00:03] ██████████████████████████████████████████████████████████████████████████████░░ 9800/10000 GPU Frame Progress...
+[00:00:07] ███████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 39/134 Generating scenes for each frame...
+
+[00:00:02] ████████████████████████████████████████████████████████████████░░░░░░░░░░░░░░░░ 8000/10000 GPU Frame Progress...
 ```
+
 <p align="center">
 <img src="./info/images/progress_bar.png" width="800" />
 </p>
