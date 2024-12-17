@@ -11,4 +11,5 @@ pub struct RenderInfo {
     pub use_gpu: Option<bool>,
     pub animation: Option<bool>,
     pub framerate: Option<f32>,
+    pub anim_pipeline_depth: Option<usize>,
 }
